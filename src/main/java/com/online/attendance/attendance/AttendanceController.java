@@ -2,8 +2,6 @@ package com.online.attendance.attendance;
 
 import com.online.attendance.audit.AuditService;
 import com.online.attendance.attendance.dto.AttendanceResponse;
-import com.online.attendance.attendance.dto.CheckInRequest;
-import com.online.attendance.attendance.dto.CheckOutRequest;
 import com.online.attendance.company.Company;
 import com.online.attendance.employee.Employee;
 import com.online.attendance.employee.EmployeeRepository;
@@ -59,7 +57,10 @@ public class AttendanceController {
 
     @PreAuthorize("hasRole('EMPLOYEE')")
     @PostMapping(value = "/face/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> verifyFace(Authentication authentication, @RequestPart("image") @NotNull MultipartFile image) {
+    public ResponseEntity<?> verifyFace(
+            Authentication authentication,
+            @RequestPart("image") @NotNull MultipartFile image,
+            @RequestPart(value = "descriptor", required = false) String descriptorJson) {
         if (image.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Image is required"));
         }
@@ -80,7 +81,7 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "No active check-in found"));
         }
 
-        boolean ok = faceService.verify(employee, image);
+        boolean ok = faceService.verify(employee, image, descriptorJson);
         attendance.setFaceVerified(ok);
         attendanceRepository.save(attendance);
 
@@ -156,8 +157,13 @@ public class AttendanceController {
     }
 
     @PreAuthorize("hasRole('EMPLOYEE')")
-    @PostMapping("/check-in")
-    public ResponseEntity<?> checkIn(Authentication authentication, @Valid @RequestBody CheckInRequest request) {
+    @PostMapping(value = "/check-in", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> checkIn(
+            Authentication authentication,
+            @RequestPart("image") @NotNull MultipartFile image,
+            @RequestParam("latitude") double latitude,
+            @RequestParam("longitude") double longitude
+    ) {
         Company company = currentCompanyService.requireCompany(authentication);
         String username = currentCompanyService.requireUsername(authentication);
 
@@ -165,6 +171,19 @@ public class AttendanceController {
                 .orElse(null);
         if (employee == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Employee profile not found"));
+        }
+
+        if (image.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Image is required for check-in. Please take or upload a photo."));
+        }
+
+        if (!faceService.hasEnrollment(employee)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll your face first before checking in."));
+        }
+
+        boolean faceVerified = faceService.verify(employee, image);
+        if (!faceVerified) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
         }
 
         boolean alreadyCheckedIn = attendanceRepository
@@ -176,17 +195,17 @@ public class AttendanceController {
 
         boolean locationVerified = locationVerificationService.isWithinAnyActiveLocation(
                 company.getId(),
-                request.getLatitude(),
-                request.getLongitude()
+                latitude,
+                longitude
         );
 
         AttendanceRecord record = AttendanceRecord.builder()
                 .employee(employee)
                 .checkInTime(Instant.now())
-                .checkInLat(request.getLatitude())
-                .checkInLng(request.getLongitude())
+                .checkInLat(latitude)
+                .checkInLng(longitude)
                 .locationVerified(locationVerified)
-                .faceVerified(false)
+                .faceVerified(true)
                 .status(AttendanceStatus.PRESENT)
                 .build();
 
@@ -197,14 +216,19 @@ public class AttendanceController {
                 "CHECK_IN",
                 "AttendanceRecord",
                 record.getId(),
-                "{\"lat\":" + request.getLatitude() + ",\"lng\":" + request.getLongitude() + ",\"locationVerified\":" + locationVerified + "}"
+                "{\"lat\":" + latitude + ",\"lng\":" + longitude + ",\"locationVerified\":" + locationVerified + ",\"faceVerified\":true}"
         );
         return ResponseEntity.ok(toResponse(record));
     }
 
     @PreAuthorize("hasRole('EMPLOYEE')")
-    @PostMapping("/check-out")
-    public ResponseEntity<?> checkOut(Authentication authentication, @Valid @RequestBody CheckOutRequest request) {
+    @PostMapping(value = "/check-out", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> checkOut(
+            Authentication authentication,
+            @RequestPart("image") @NotNull MultipartFile image,
+            @RequestParam("latitude") double latitude,
+            @RequestParam("longitude") double longitude
+    ) {
         Company company = currentCompanyService.requireCompany(authentication);
         String username = currentCompanyService.requireUsername(authentication);
 
@@ -216,14 +240,29 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "No active check-in found"));
         }
 
+        if (image.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Image is required for check-out. Please take or upload a photo."));
+        }
+
+        Employee employee = record.getEmployee();
+        if (!faceService.hasEnrollment(employee)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Cannot verify check-out."));
+        }
+
+        boolean faceVerified = faceService.verify(employee, image);
+        if (!faceVerified) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
+        }
+
         record.setCheckOutTime(Instant.now());
-        record.setCheckOutLat(request.getLatitude());
-        record.setCheckOutLng(request.getLongitude());
+        record.setCheckOutLat(latitude);
+        record.setCheckOutLng(longitude);
+        record.setFaceVerified(true);
 
         boolean locationVerified = locationVerificationService.isWithinAnyActiveLocation(
                 company.getId(),
-                request.getLatitude(),
-                request.getLongitude()
+                latitude,
+                longitude
         );
         record.setLocationVerified(record.isLocationVerified() && locationVerified);
 
@@ -234,7 +273,7 @@ public class AttendanceController {
                 "CHECK_OUT",
                 "AttendanceRecord",
                 record.getId(),
-                "{\"lat\":" + request.getLatitude() + ",\"lng\":" + request.getLongitude() + ",\"locationVerified\":" + locationVerified + "}"
+                "{\"lat\":" + latitude + ",\"lng\":" + longitude + ",\"locationVerified\":" + locationVerified + ",\"faceVerified\":true}"
         );
         return ResponseEntity.ok(toResponse(record));
     }
@@ -251,8 +290,8 @@ public class AttendanceController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
     @GetMapping
-    public List<AttendanceResponse> listToday(Authentication authentication) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public List<AttendanceResponse> listToday(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         Instant from = today.atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant to = today.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
@@ -264,8 +303,8 @@ public class AttendanceController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     @GetMapping("/{id}")
-    public ResponseEntity<?> getById(Authentication authentication, @PathVariable Long id) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> getById(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         AttendanceRecord record = attendanceRepository.findByIdAndEmployeeUserCompanyId(id, company.getId()).orElse(null);
         if (record == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Attendance record not found"));
@@ -275,8 +314,8 @@ public class AttendanceController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<?> listByEmployee(Authentication authentication, @PathVariable Long employeeId) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> listByEmployee(Authentication authentication, @PathVariable Long employeeId, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         Employee employee = employeeRepository.findByIdAndUserCompanyId(employeeId, company.getId()).orElse(null);
         if (employee == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Employee not found"));
@@ -297,8 +336,8 @@ public class AttendanceController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     @PostMapping("/admin")
-    public ResponseEntity<?> createForEmployee(Authentication authentication, @Valid @RequestBody AdminUpsertAttendanceRequest request) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> createForEmployee(Authentication authentication, @Valid @RequestBody AdminUpsertAttendanceRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
 
         if (request.getEmployeeId() == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "employeeId is required"));
@@ -329,8 +368,8 @@ public class AttendanceController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     @PatchMapping("/admin/{id}")
-    public ResponseEntity<?> updateForEmployee(Authentication authentication, @PathVariable Long id, @RequestBody AdminUpsertAttendanceRequest request) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> updateForEmployee(Authentication authentication, @PathVariable Long id, @RequestBody AdminUpsertAttendanceRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         AttendanceRecord record = attendanceRepository.findByIdAndEmployeeUserCompanyId(id, company.getId()).orElse(null);
         if (record == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Attendance record not found"));
@@ -379,8 +418,8 @@ public class AttendanceController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     @DeleteMapping("/admin/{id}")
-    public ResponseEntity<?> deleteForEmployee(Authentication authentication, @PathVariable Long id) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> deleteForEmployee(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         AttendanceRecord record = attendanceRepository.findByIdAndEmployeeUserCompanyId(id, company.getId()).orElse(null);
         if (record == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Attendance record not found"));

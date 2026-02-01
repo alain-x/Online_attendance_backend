@@ -1,5 +1,6 @@
 package com.online.attendance.company;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,4 +24,17 @@ public class Company {
 
     @Column(nullable = false, length = 100)
     private String slug;
+
+    @Column(name = "logo_url", length = 500)
+    private String logoUrl;
+
+    /** Parent company (e.g. PRI). Null for root companies. Branches (e.g. PowerX, PowerM) reference the parent. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_company_id", foreignKey = @ForeignKey(name = "fk_company_parent"))
+    @JsonIgnore
+    private Company parentCompany;
+
+    public Long getParentCompanyId() {
+        return parentCompany != null ? parentCompany.getId() : null;
+    }
 }

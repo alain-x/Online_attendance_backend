@@ -7,6 +7,7 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<AppUser, Long> {
     Optional<AppUser> findByUsername(String username);
+    List<AppUser> findAllByUsername(String username);
     boolean existsByUsername(String username);
 
     Optional<AppUser> findByUsernameAndCompanySlug(String username, String companySlug);
@@ -14,4 +15,5 @@ public interface UserRepository extends JpaRepository<AppUser, Long> {
 
     List<AppUser> findAllByCompanyId(Long companyId);
     Optional<AppUser> findByIdAndCompanyId(Long id, Long companyId);
+    long countByCompanyId(Long companyId);
 }

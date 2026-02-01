@@ -35,10 +35,10 @@ public class EmployeeController {
         this.currentCompanyService = currentCompanyService;
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @PostMapping
-    public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateEmployeeRequest request) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateEmployeeRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         if (userRepository.existsByUsernameAndCompanyId(request.getUsername(), company.getId())) {
             return ResponseEntity.badRequest().body(Map.of("message", "Username already exists"));
         }
@@ -76,17 +76,17 @@ public class EmployeeController {
         return ResponseEntity.ok(toResponse(employee));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER')")
     @GetMapping
-    public List<EmployeeResponse> list(Authentication authentication) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public List<EmployeeResponse> list(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         return employeeRepository.findByUserCompanyId(company.getId()).stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER')")
     @GetMapping("/{id}")
-    public ResponseEntity<?> getById(Authentication authentication, @PathVariable Long id) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> getById(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         Employee employee = employeeRepository.findByIdAndUserCompanyId(id, company.getId()).orElse(null);
         if (employee == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Employee not found"));
@@ -94,10 +94,10 @@ public class EmployeeController {
         return ResponseEntity.ok(toResponse(employee));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @Valid @RequestBody UpdateEmployeeRequest request) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @Valid @RequestBody UpdateEmployeeRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         Employee employee = employeeRepository.findByIdAndUserCompanyId(id, company.getId()).orElse(null);
         if (employee == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Employee not found"));
@@ -133,10 +133,10 @@ public class EmployeeController {
         return ResponseEntity.ok(toResponse(employee));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         Employee employee = employeeRepository.findByIdAndUserCompanyId(id, company.getId()).orElse(null);
         if (employee == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Employee not found"));

@@ -8,7 +8,7 @@ import lombok.Setter;
 @Setter
 public class LoginRequest {
 
-    @NotBlank
+    /** Optional. If blank, user is looked up by username across all companies. */
     private String companySlug;
 
     @NotBlank

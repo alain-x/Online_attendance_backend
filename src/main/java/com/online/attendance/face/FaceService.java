@@ -1,13 +1,20 @@
 package com.online.attendance.face;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.online.attendance.employee.Employee;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.security.MessageDigest;
+import java.util.List;
 
 @Service
 public class FaceService {
+
+    private static final double FACE_DESCRIPTOR_THRESHOLD = 0.6;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public String hash(MultipartFile image) {
         try {
@@ -25,14 +32,46 @@ public class FaceService {
     }
 
     public boolean hasEnrollment(Employee employee) {
-        return employee.getFaceTemplateRef() != null && !employee.getFaceTemplateRef().isBlank();
+        boolean hasTemplate = employee.getFaceTemplateRef() != null && !employee.getFaceTemplateRef().isBlank();
+        boolean hasDescriptor = employee.getFaceDescriptor() != null && !employee.getFaceDescriptor().isBlank();
+        return hasTemplate || hasDescriptor;
     }
 
     public boolean verify(Employee employee, MultipartFile image) {
+        return verify(employee, image, null);
+    }
+
+    /**
+     * Verify using image hash and/or AI descriptor.
+     * If employee has faceDescriptor and candidateDescriptor is provided, use euclidean distance (AI).
+     * Otherwise fall back to image hash match.
+     */
+    public boolean verify(Employee employee, MultipartFile image, String candidateDescriptorJson) {
         if (!hasEnrollment(employee)) {
             return false;
         }
+        if (employee.getFaceDescriptor() != null && !employee.getFaceDescriptor().isBlank()
+                && candidateDescriptorJson != null && !candidateDescriptorJson.isBlank()) {
+            try {
+                List<Double> stored = objectMapper.readValue(employee.getFaceDescriptor(), new TypeReference<>() {});
+                List<Double> candidate = objectMapper.readValue(candidateDescriptorJson, new TypeReference<>() {});
+                if (stored.size() == 128 && candidate.size() == 128) {
+                    double distance = euclideanDistance(stored, candidate);
+                    return distance < FACE_DESCRIPTOR_THRESHOLD;
+                }
+            } catch (Exception ignored) {
+            }
+        }
         String candidate = hash(image);
-        return employee.getFaceTemplateRef().equals(candidate);
+        return candidate.equals(employee.getFaceTemplateRef());
+    }
+
+    private static double euclideanDistance(List<Double> a, List<Double> b) {
+        double sum = 0;
+        for (int i = 0; i < a.size() && i < b.size(); i++) {
+            double d = a.get(i) - b.get(i);
+            sum += d * d;
+        }
+        return Math.sqrt(sum);
     }
 }

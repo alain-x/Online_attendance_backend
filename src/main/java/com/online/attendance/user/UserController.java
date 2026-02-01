@@ -32,15 +32,15 @@ public class UserController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @GetMapping
-    public List<UserResponse> list(Authentication authentication) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public List<UserResponse> list(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         return userRepository.findAllByCompanyId(company.getId()).stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PostMapping
-    public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateUserRequest request) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateUserRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         if (userRepository.existsByUsernameAndCompanyId(request.getUsername(), company.getId())) {
             return ResponseEntity.badRequest().body(Map.of("message", "Username already exists"));
         }
@@ -68,8 +68,8 @@ public class UserController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PatchMapping("/{id}")
-    public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @RequestBody UpdateUserRequest request) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @RequestBody UpdateUserRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
 
         AppUser user = userRepository.findByIdAndCompanyId(id, company.getId()).orElse(null);
         if (user == null) {

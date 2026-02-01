@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -52,19 +53,20 @@ public class AnalyticsController {
     @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
     @GetMapping("/home")
     public HomeAnalyticsResponse home(Authentication authentication,
+                                     @RequestHeader(value = "X-Company-Id", required = false) Long companyId,
                                      @RequestParam(required = false) Integer year,
                                      @RequestParam(required = false) Integer month) {
-        Company company = currentCompanyService.requireCompany(authentication);
-        Long companyId = company.getId();
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        Long effectiveCompanyId = company.getId();
 
-        long totalStaff = employeeRepository.countByUserCompanyId(companyId);
+        long totalStaff = employeeRepository.countByUserCompanyId(effectiveCompanyId);
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         Instant todayFrom = today.atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant todayTo = today.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
 
         List<AttendanceRecord> todayRecords = attendanceRepository
-                .findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(todayFrom, todayTo, companyId);
+                .findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(todayFrom, todayTo, effectiveCompanyId);
 
         Set<Long> presentEmployeeIds = new HashSet<>();
         Set<Long> checkedOutEmployeeIds = new HashSet<>();
@@ -95,7 +97,7 @@ public class AnalyticsController {
         Instant monthTo = ym.plusMonths(1).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC);
 
         List<AttendanceRecord> monthRecords = attendanceRepository
-                .findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(monthFrom, monthTo, companyId);
+                .findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(monthFrom, monthTo, effectiveCompanyId);
 
         long workedMinutesMonth = 0;
         Map<LocalDate, Long> countsByDay = new HashMap<>();

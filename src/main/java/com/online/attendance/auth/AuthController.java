@@ -12,8 +12,10 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -24,33 +26,61 @@ public class AuthController {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final CurrentCompanyService currentCompanyService;
+    private final PasswordEncoder passwordEncoder;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, UserRepository userRepository, CurrentCompanyService currentCompanyService) {
+    public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, UserRepository userRepository, CurrentCompanyService currentCompanyService, PasswordEncoder passwordEncoder) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userRepository = userRepository;
         this.currentCompanyService = currentCompanyService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        String principal = request.getCompanySlug() + "::" + request.getUsername();
-        Authentication auth = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(principal, request.getPassword())
-        );
+        String username = request.getUsername().trim();
+        String password = request.getPassword();
+        String companySlugParam = request.getCompanySlug() != null ? request.getCompanySlug().trim() : "";
 
-        String role = auth.getAuthorities().stream().map(GrantedAuthority::getAuthority).findFirst().orElse("ROLE_EMPLOYEE");
+        AppUser user;
 
-        AppUser user = userRepository.findByUsernameAndCompanySlug(request.getUsername(), request.getCompanySlug()).orElse(null);
-        Long companyId = user != null && user.getCompany() != null ? user.getCompany().getId() : null;
-        String companySlug = user != null && user.getCompany() != null ? user.getCompany().getSlug() : null;
+        if (!companySlugParam.isEmpty()) {
+            // Company slug provided: use existing flow (company::username)
+            String principal = companySlugParam + "::" + username;
+            Authentication auth = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(principal, password)
+            );
+            user = userRepository.findByUsernameAndCompanySlug(username, companySlugParam).orElse(null);
+        } else {
+            // No company slug: find user by username across all companies and verify password
+            List<AppUser> candidates = userRepository.findAllByUsername(username);
+            user = null;
+            for (AppUser u : candidates) {
+                if (u.isEnabled() && passwordEncoder.matches(password, u.getPasswordHash())) {
+                    user = u;
+                    break;
+                }
+            }
+            if (user == null) {
+                return ResponseEntity.status(401).body(null);
+            }
+        }
+
+        if (user == null) {
+            return ResponseEntity.status(401).body(null);
+        }
+
+        String principal = (user.getCompany() != null ? user.getCompany().getSlug() : "default") + "::" + user.getUsername();
+        String role = "ROLE_" + user.getRole().name();
+        Long companyId = user.getCompany() != null ? user.getCompany().getId() : null;
+        String companySlug = user.getCompany() != null ? user.getCompany().getSlug() : null;
 
         String token = jwtService.generateToken(
                 principal,
                 Map.of(
                         "role", role,
-                        "companyId", companyId,
-                        "companySlug", companySlug
+                        "companyId", companyId != null ? companyId : 0L,
+                        "companySlug", companySlug != null ? companySlug : "default"
                 )
         );
 

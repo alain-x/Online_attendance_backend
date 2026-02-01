@@ -43,6 +43,10 @@ public class Employee {
     @Column(name = "face_template_ref")
     private String faceTemplateRef;
 
+    /** AI face descriptor (128 floats as JSON array). When set, verification uses euclidean distance. */
+    @Column(name = "face_descriptor", columnDefinition = "TEXT")
+    private String faceDescriptor;
+
     @OneToOne(optional = false)
     @JoinColumn(name = "user_id", nullable = false, foreignKey = @ForeignKey(name = "fk_employee_user"))
     private AppUser user;

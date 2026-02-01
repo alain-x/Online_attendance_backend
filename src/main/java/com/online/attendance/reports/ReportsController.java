@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -54,10 +55,11 @@ public class ReportsController {
     @GetMapping(value = "/daily-attendance.csv", produces = "text/csv")
     public ResponseEntity<byte[]> dailyAttendanceCsv(
             Authentication authentication,
+            @RequestHeader(value = "X-Company-Id", required = false) Long companyId,
             @RequestParam(required = false) String date
     ) {
-        Company company = currentCompanyService.requireCompany(authentication);
-        Long companyId = company.getId();
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        Long effectiveCompanyId = company.getId();
 
         LocalDate day = (date == null || date.isBlank())
                 ? LocalDate.now(ZoneOffset.UTC)
@@ -67,7 +69,7 @@ public class ReportsController {
         Instant to = day.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
 
         List<AttendanceRecord> records = attendanceRepository
-                .findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(from, to, companyId);
+                .findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(from, to, effectiveCompanyId);
 
         String csv = buildDailyAttendanceCsv(day, records);
 

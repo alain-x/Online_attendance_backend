@@ -36,9 +36,12 @@ public class FaceController {
         this.auditService = auditService;
     }
 
-    @PreAuthorize("hasRole('EMPLOYEE')")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     @PostMapping(value = "/enroll", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> enroll(Authentication authentication, @RequestPart("image") @NotNull MultipartFile image) {
+    public ResponseEntity<?> enroll(
+            Authentication authentication,
+            @RequestPart("image") @NotNull MultipartFile image,
+            @RequestPart(value = "descriptor", required = false) String descriptorJson) {
         Company company = currentCompanyService.requireCompany(authentication);
         Employee employee = employeeRepository.findByUserUsernameAndUserCompanyId(currentCompanyService.requireUsername(authentication), company.getId()).orElse(null);
         if (employee == null) {
@@ -50,6 +53,9 @@ public class FaceController {
         }
 
         employee.setFaceTemplateRef(faceService.hash(image));
+        if (descriptorJson != null && !descriptorJson.isBlank()) {
+            employee.setFaceDescriptor(descriptorJson);
+        }
         employeeRepository.save(employee);
 
         auditService.log(

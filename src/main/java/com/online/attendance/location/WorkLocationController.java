@@ -27,8 +27,8 @@ public class WorkLocationController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     @PostMapping
-    public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateWorkLocationRequest request) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateWorkLocationRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         WorkLocation location = WorkLocation.builder()
                 .name(request.getName())
                 .company(company)
@@ -44,15 +44,15 @@ public class WorkLocationController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
     @GetMapping
-    public List<WorkLocation> list(Authentication authentication) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public List<WorkLocation> list(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         return workLocationRepository.findByCompanyId(company.getId());
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
     @GetMapping("/{id}")
-    public ResponseEntity<?> getById(Authentication authentication, @PathVariable Long id) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> getById(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         WorkLocation location = workLocationRepository.findByIdAndCompanyId(id, company.getId());
         if (location == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Location not found"));
@@ -62,15 +62,15 @@ public class WorkLocationController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER','EMPLOYEE')")
     @GetMapping("/active")
-    public List<WorkLocation> listActive(Authentication authentication) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public List<WorkLocation> listActive(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         return workLocationRepository.findByActiveTrueAndCompanyId(company.getId());
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     @PutMapping("/{id}/active")
-    public ResponseEntity<?> setActive(Authentication authentication, @PathVariable Long id, @RequestParam boolean active) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> setActive(Authentication authentication, @PathVariable Long id, @RequestParam boolean active, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         WorkLocation location = workLocationRepository.findByIdAndCompanyId(id, company.getId());
         if (location == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Location not found"));
@@ -81,8 +81,8 @@ public class WorkLocationController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @Valid @RequestBody UpdateWorkLocationRequest request) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @Valid @RequestBody UpdateWorkLocationRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         WorkLocation location = workLocationRepository.findByIdAndCompanyId(id, company.getId());
         if (location == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Location not found"));
@@ -99,8 +99,8 @@ public class WorkLocationController {
 
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id) {
-        Company company = currentCompanyService.requireCompany(authentication);
+    public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         WorkLocation location = workLocationRepository.findByIdAndCompanyId(id, company.getId());
         if (location == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Location not found"));
