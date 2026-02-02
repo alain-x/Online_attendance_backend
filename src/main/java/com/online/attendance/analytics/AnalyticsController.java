@@ -5,7 +5,13 @@ import com.online.attendance.attendance.AttendanceRepository;
 import com.online.attendance.attendance.BreakRecord;
 import com.online.attendance.attendance.BreakRepository;
 import com.online.attendance.company.Company;
+import com.online.attendance.employee.Employee;
 import com.online.attendance.employee.EmployeeRepository;
+import com.online.attendance.analytics.dto.DayAttendanceResponse;
+import com.online.attendance.analytics.dto.DayEmployeeRow;
+import com.online.attendance.analytics.dto.TimesheetCell;
+import com.online.attendance.analytics.dto.TimesheetEmployeeRow;
+import com.online.attendance.analytics.dto.TimesheetResponse;
 import com.online.attendance.security.CurrentCompanyService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -21,6 +27,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -134,6 +141,281 @@ public class AnalyticsController {
                 overtimeMinutesMonth,
                 monthClockIns
         );
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
+    @GetMapping("/day")
+    public DayAttendanceResponse day(
+            Authentication authentication,
+            @RequestHeader(value = "X-Company-Id", required = false) Long companyId,
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String roleScope,
+            @RequestParam(required = false) String search
+    ) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        Long effectiveCompanyId = company.getId();
+
+        LocalDate day = (date == null || date.isBlank())
+                ? LocalDate.now(ZoneOffset.UTC)
+                : LocalDate.parse(date);
+        Instant from = day.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant to = day.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        List<Employee> allEmployees = employeeRepository.findByUserCompanyId(effectiveCompanyId);
+        List<Employee> employees = filterEmployees(allEmployees, department, roleScope, search);
+
+        List<AttendanceRecord> records = attendanceRepository
+                .findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(from, to, effectiveCompanyId);
+
+        Map<Long, DayAgg> perEmployee = new HashMap<>();
+        for (AttendanceRecord r : records) {
+            if (r.getEmployee() == null || r.getEmployee().getId() == null) continue;
+            Long empId = r.getEmployee().getId();
+            DayAgg agg = perEmployee.get(empId);
+            if (agg == null) {
+                agg = new DayAgg();
+                perEmployee.put(empId, agg);
+            }
+
+            if (r.getCheckInTime() != null && (agg.earliestIn == null || r.getCheckInTime().isBefore(agg.earliestIn))) {
+                agg.earliestIn = r.getCheckInTime();
+            }
+            if (r.getCheckOutTime() != null && (agg.latestOut == null || r.getCheckOutTime().isAfter(agg.latestOut))) {
+                agg.latestOut = r.getCheckOutTime();
+            }
+
+            long breakMinutes = calculateBreakMinutes(r);
+            long workedMinutes = calculateWorkedMinutes(r, breakMinutes);
+            agg.workedMinutes += workedMinutes;
+
+            long extra = workedMinutes - STANDARD_WORKDAY_MINUTES;
+            if (extra > 0) {
+                agg.overtimeMinutes += extra;
+            }
+        }
+
+        long present = 0;
+        long workedMinutesTotal = 0;
+        long overtimeMinutesTotal = 0;
+        List<DayEmployeeRow> rows = new ArrayList<>();
+        for (Employee e : employees) {
+            DayAgg agg = perEmployee.get(e.getId());
+            boolean isPresent = agg != null && agg.earliestIn != null;
+            if (isPresent) present++;
+
+            long worked = agg != null ? agg.workedMinutes : 0;
+            long overtime = agg != null ? agg.overtimeMinutes : 0;
+            workedMinutesTotal += worked;
+            overtimeMinutesTotal += overtime;
+
+            String status;
+            if (!isPresent) {
+                status = "NOT_IN";
+            } else if (agg.latestOut != null) {
+                status = "OUT";
+            } else {
+                status = "IN";
+            }
+
+            rows.add(new DayEmployeeRow(
+                    e.getId(),
+                    e.getEmployeeCode(),
+                    e.getFirstName(),
+                    e.getLastName(),
+                    e.getDepartment(),
+                    e.getUser() != null && e.getUser().getRole() != null ? e.getUser().getRole().name() : null,
+                    agg != null && agg.earliestIn != null ? agg.earliestIn.toString() : null,
+                    agg != null && agg.latestOut != null ? agg.latestOut.toString() : null,
+                    worked,
+                    overtime,
+                    status
+            ));
+        }
+
+        rows.sort((a, b) -> {
+            String ac = a.getEmployeeCode() != null ? a.getEmployeeCode() : "";
+            String bc = b.getEmployeeCode() != null ? b.getEmployeeCode() : "";
+            return ac.compareToIgnoreCase(bc);
+        });
+
+        long totalStaff = employees.size();
+        long notIn = Math.max(0, totalStaff - present);
+
+        return new DayAttendanceResponse(
+                day.toString(),
+                totalStaff,
+                present,
+                notIn,
+                0,
+                0,
+                workedMinutesTotal,
+                overtimeMinutesTotal,
+                rows
+        );
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
+    @GetMapping("/timesheet")
+    public TimesheetResponse timesheet(
+            Authentication authentication,
+            @RequestHeader(value = "X-Company-Id", required = false) Long companyId,
+            @RequestParam Integer year,
+            @RequestParam Integer month,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String roleScope,
+            @RequestParam(required = false) String search
+    ) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        Long effectiveCompanyId = company.getId();
+
+        YearMonth ym = YearMonth.of(year, month);
+        Instant from = ym.atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant to = ym.plusMonths(1).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        List<Employee> allEmployees = employeeRepository.findByUserCompanyId(effectiveCompanyId);
+        List<Employee> employees = filterEmployees(allEmployees, department, roleScope, search);
+
+        List<AttendanceRecord> monthRecords = attendanceRepository
+                .findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(from, to, effectiveCompanyId);
+
+        Map<Long, Map<LocalDate, DayAgg>> perEmployeePerDay = new HashMap<>();
+        for (AttendanceRecord r : monthRecords) {
+            if (r.getEmployee() == null || r.getEmployee().getId() == null || r.getCheckInTime() == null) continue;
+            Long empId = r.getEmployee().getId();
+            LocalDate d = LocalDate.ofInstant(r.getCheckInTime(), ZoneOffset.UTC);
+
+            Map<LocalDate, DayAgg> perDay = perEmployeePerDay.computeIfAbsent(empId, k -> new HashMap<>());
+            DayAgg agg = perDay.get(d);
+            if (agg == null) {
+                agg = new DayAgg();
+                perDay.put(d, agg);
+            }
+
+            if (r.getCheckInTime() != null && (agg.earliestIn == null || r.getCheckInTime().isBefore(agg.earliestIn))) {
+                agg.earliestIn = r.getCheckInTime();
+            }
+            if (r.getCheckOutTime() != null && (agg.latestOut == null || r.getCheckOutTime().isAfter(agg.latestOut))) {
+                agg.latestOut = r.getCheckOutTime();
+            }
+
+            long breakMinutes = calculateBreakMinutes(r);
+            long workedMinutes = calculateWorkedMinutes(r, breakMinutes);
+            agg.workedMinutes += workedMinutes;
+
+            long extra = workedMinutes - STANDARD_WORKDAY_MINUTES;
+            if (extra > 0) {
+                agg.overtimeMinutes += extra;
+            }
+        }
+
+        int daysInMonth = ym.lengthOfMonth();
+        List<String> days = new ArrayList<>(daysInMonth);
+        for (int i = 1; i <= daysInMonth; i++) {
+            days.add(ym.atDay(i).toString());
+        }
+
+        List<TimesheetEmployeeRow> rows = new ArrayList<>();
+        for (Employee e : employees) {
+            Map<LocalDate, DayAgg> perDay = perEmployeePerDay.getOrDefault(e.getId(), Collections.emptyMap());
+
+            long presentDays = 0;
+            long offDays = 0;
+            long workedMinutesTotal = 0;
+            long overtimeMinutesTotal = 0;
+
+            List<TimesheetCell> cells = new ArrayList<>(daysInMonth);
+            for (int i = 1; i <= daysInMonth; i++) {
+                LocalDate d = ym.atDay(i);
+                DayAgg agg = perDay.get(d);
+                if (agg != null && agg.earliestIn != null) {
+                    presentDays++;
+                    workedMinutesTotal += agg.workedMinutes;
+                    overtimeMinutesTotal += agg.overtimeMinutes;
+                    cells.add(new TimesheetCell("PRESENT", agg.workedMinutes, agg.overtimeMinutes));
+                } else {
+                    offDays++;
+                    cells.add(new TimesheetCell("OFF", 0, 0));
+                }
+            }
+
+            rows.add(new TimesheetEmployeeRow(
+                    e.getId(),
+                    e.getEmployeeCode(),
+                    e.getFirstName(),
+                    e.getLastName(),
+                    e.getDepartment(),
+                    e.getUser() != null && e.getUser().getRole() != null ? e.getUser().getRole().name() : null,
+                    cells,
+                    presentDays,
+                    offDays,
+                    workedMinutesTotal,
+                    overtimeMinutesTotal
+            ));
+        }
+
+        rows.sort((a, b) -> {
+            String ac = a.getEmployeeCode() != null ? a.getEmployeeCode() : "";
+            String bc = b.getEmployeeCode() != null ? b.getEmployeeCode() : "";
+            return ac.compareToIgnoreCase(bc);
+        });
+
+        return new TimesheetResponse(
+                year,
+                month,
+                from.toString(),
+                to.toString(),
+                days,
+                rows
+        );
+    }
+
+    private static List<Employee> filterEmployees(
+            List<Employee> employees,
+            String department,
+            String roleScope,
+            String search
+    ) {
+        if (employees == null || employees.isEmpty()) return Collections.emptyList();
+
+        String dep = department != null ? department.trim() : "";
+        boolean depAll = dep.isEmpty() || "ALL".equalsIgnoreCase(dep);
+
+        String scope = roleScope != null ? roleScope.trim() : "";
+        boolean managersOnly = "MANAGERS".equalsIgnoreCase(scope);
+
+        String q = search != null ? search.trim().toLowerCase() : "";
+
+        List<Employee> out = new ArrayList<>();
+        for (Employee e : employees) {
+            if (!depAll) {
+                String ed = e.getDepartment() != null ? e.getDepartment().trim() : "";
+                if (!dep.equals(ed)) continue;
+            }
+
+            if (managersOnly) {
+                if (e.getUser() == null || e.getUser().getRole() == null || !"MANAGER".equals(e.getUser().getRole().name())) {
+                    continue;
+                }
+            }
+
+            if (!q.isEmpty()) {
+                String code = e.getEmployeeCode() != null ? e.getEmployeeCode() : "";
+                String name = (e.getFirstName() != null ? e.getFirstName() : "") + " " + (e.getLastName() != null ? e.getLastName() : "");
+                String hay = (code + " " + name).toLowerCase();
+                if (!hay.contains(q)) continue;
+            }
+
+            out.add(e);
+        }
+        return out;
+    }
+
+    private static class DayAgg {
+        Instant earliestIn;
+        Instant latestOut;
+        long workedMinutes;
+        long overtimeMinutes;
     }
 
     /**

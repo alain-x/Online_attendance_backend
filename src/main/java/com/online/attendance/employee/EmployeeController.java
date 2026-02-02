@@ -40,7 +40,7 @@ public class EmployeeController {
     public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateEmployeeRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
         if (userRepository.existsByUsernameAndCompanyId(request.getUsername(), company.getId())) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Username already exists"));
+            return ResponseEntity.status(409).body(Map.of("message", "Username already exists"));
         }
 
         Role role;
@@ -111,6 +111,18 @@ public class EmployeeController {
         employee.setCategory(request.getCategory());
 
         AppUser user = employee.getUser();
+
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            String requestedUsername = request.getUsername().trim();
+            String currentUsername = user.getUsername();
+            if (!requestedUsername.equalsIgnoreCase(currentUsername)) {
+                if (userRepository.existsByUsernameAndCompanyId(requestedUsername, company.getId())) {
+                    return ResponseEntity.status(409).body(Map.of("message", "Username already exists"));
+                }
+                user.setUsername(requestedUsername);
+            }
+        }
+
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }

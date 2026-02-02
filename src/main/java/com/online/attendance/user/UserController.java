@@ -1,11 +1,13 @@
 package com.online.attendance.user;
 
 import com.online.attendance.company.Company;
+import com.online.attendance.employee.EmployeeRepository;
 import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.user.dto.CreateUserRequest;
 import com.online.attendance.user.dto.UpdateUserRequest;
 import com.online.attendance.user.dto.UserResponse;
 import jakarta.validation.Valid;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -23,11 +25,13 @@ public class UserController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentCompanyService currentCompanyService;
+    private final EmployeeRepository employeeRepository;
 
-    public UserController(UserRepository userRepository, PasswordEncoder passwordEncoder, CurrentCompanyService currentCompanyService) {
+    public UserController(UserRepository userRepository, PasswordEncoder passwordEncoder, CurrentCompanyService currentCompanyService, EmployeeRepository employeeRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentCompanyService = currentCompanyService;
+        this.employeeRepository = employeeRepository;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -42,7 +46,7 @@ public class UserController {
     public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateUserRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
         if (userRepository.existsByUsernameAndCompanyId(request.getUsername(), company.getId())) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Username already exists"));
+            return ResponseEntity.status(409).body(Map.of("message", "Username already exists"));
         }
 
         Role role;
@@ -62,8 +66,12 @@ public class UserController {
                 .enabled(enabled)
                 .build();
 
-        user = userRepository.save(user);
-        return ResponseEntity.ok(toResponse(user));
+        try {
+            user = userRepository.save(user);
+            return ResponseEntity.ok(toResponse(user));
+        } catch (DataIntegrityViolationException ex) {
+            return ResponseEntity.status(409).body(Map.of("message", "Username already exists"));
+        }
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -96,6 +104,26 @@ public class UserController {
 
         user = userRepository.save(user);
         return ResponseEntity.ok(toResponse(user));
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
+
+        AppUser user = userRepository.findByIdAndCompanyId(id, company.getId()).orElse(null);
+        if (user == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "User not found"));
+        }
+
+        // In this system, employee accounts are linked one-to-one with users.
+        // To avoid orphaning employees and related attendance records, require deletion through Staff/Employee deletion.
+        if (employeeRepository.findByUserIdAndUserCompanyId(user.getId(), company.getId()).isPresent()) {
+            return ResponseEntity.status(409).body(Map.of("message", "User is linked to an employee. Delete the employee from Settings instead."));
+        }
+
+        userRepository.delete(user);
+        return ResponseEntity.noContent().build();
     }
 
     private UserResponse toResponse(AppUser user) {

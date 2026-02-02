@@ -5,6 +5,7 @@ import com.online.attendance.attendance.dto.AttendanceResponse;
 import com.online.attendance.company.Company;
 import com.online.attendance.employee.Employee;
 import com.online.attendance.employee.EmployeeRepository;
+import com.online.attendance.face.OpenCvImageQualityService;
 import com.online.attendance.face.FaceService;
 import com.online.attendance.location.LocationVerificationService;
 import com.online.attendance.security.CurrentCompanyService;
@@ -34,6 +35,7 @@ public class AttendanceController {
     private final EmployeeRepository employeeRepository;
     private final LocationVerificationService locationVerificationService;
     private final FaceService faceService;
+    private final OpenCvImageQualityService openCvImageQualityService;
     private final CurrentCompanyService currentCompanyService;
     private final AuditService auditService;
 
@@ -43,6 +45,7 @@ public class AttendanceController {
             EmployeeRepository employeeRepository,
             LocationVerificationService locationVerificationService,
             FaceService faceService,
+            OpenCvImageQualityService openCvImageQualityService,
             CurrentCompanyService currentCompanyService,
             AuditService auditService
     ) {
@@ -51,6 +54,7 @@ public class AttendanceController {
         this.employeeRepository = employeeRepository;
         this.locationVerificationService = locationVerificationService;
         this.faceService = faceService;
+        this.openCvImageQualityService = openCvImageQualityService;
         this.currentCompanyService = currentCompanyService;
         this.auditService = auditService;
     }
@@ -63,6 +67,11 @@ public class AttendanceController {
             @RequestPart(value = "descriptor", required = false) String descriptorJson) {
         if (image.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Image is required"));
+        }
+
+        String qualityError = openCvImageQualityService.validate(image);
+        if (qualityError != null) {
+            return ResponseEntity.badRequest().body(Map.of("message", qualityError));
         }
 
         Company company = currentCompanyService.requireCompany(authentication);
@@ -161,6 +170,7 @@ public class AttendanceController {
     public ResponseEntity<?> checkIn(
             Authentication authentication,
             @RequestPart("image") @NotNull MultipartFile image,
+            @RequestPart(value = "descriptor", required = false) String descriptorJson,
             @RequestParam("latitude") double latitude,
             @RequestParam("longitude") double longitude
     ) {
@@ -177,11 +187,16 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Image is required for check-in. Please take or upload a photo."));
         }
 
+        String checkInQualityError = openCvImageQualityService.validate(image);
+        if (checkInQualityError != null) {
+            return ResponseEntity.badRequest().body(Map.of("message", checkInQualityError));
+        }
+
         if (!faceService.hasEnrollment(employee)) {
             return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll your face first before checking in."));
         }
 
-        boolean faceVerified = faceService.verify(employee, image);
+        boolean faceVerified = faceService.verify(employee, image, descriptorJson);
         if (!faceVerified) {
             return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
         }
@@ -226,6 +241,7 @@ public class AttendanceController {
     public ResponseEntity<?> checkOut(
             Authentication authentication,
             @RequestPart("image") @NotNull MultipartFile image,
+            @RequestPart(value = "descriptor", required = false) String descriptorJson,
             @RequestParam("latitude") double latitude,
             @RequestParam("longitude") double longitude
     ) {
@@ -244,12 +260,17 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Image is required for check-out. Please take or upload a photo."));
         }
 
+        String checkOutQualityError = openCvImageQualityService.validate(image);
+        if (checkOutQualityError != null) {
+            return ResponseEntity.badRequest().body(Map.of("message", checkOutQualityError));
+        }
+
         Employee employee = record.getEmployee();
         if (!faceService.hasEnrollment(employee)) {
             return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Cannot verify check-out."));
         }
 
-        boolean faceVerified = faceService.verify(employee, image);
+        boolean faceVerified = faceService.verify(employee, image, descriptorJson);
         if (!faceVerified) {
             return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
         }

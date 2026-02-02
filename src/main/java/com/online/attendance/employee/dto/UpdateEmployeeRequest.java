@@ -22,6 +22,8 @@ public class UpdateEmployeeRequest {
 
     private String category;
 
+    private String username;
+
     private String password;
 
     private String role;

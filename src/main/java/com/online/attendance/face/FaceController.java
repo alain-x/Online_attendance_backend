@@ -21,17 +21,20 @@ public class FaceController {
 
     private final EmployeeRepository employeeRepository;
     private final FaceService faceService;
+    private final OpenCvImageQualityService openCvImageQualityService;
     private final CurrentCompanyService currentCompanyService;
     private final AuditService auditService;
 
     public FaceController(
             EmployeeRepository employeeRepository,
             FaceService faceService,
+            OpenCvImageQualityService openCvImageQualityService,
             CurrentCompanyService currentCompanyService,
             AuditService auditService
     ) {
         this.employeeRepository = employeeRepository;
         this.faceService = faceService;
+        this.openCvImageQualityService = openCvImageQualityService;
         this.currentCompanyService = currentCompanyService;
         this.auditService = auditService;
     }
@@ -50,6 +53,11 @@ public class FaceController {
 
         if (image.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Image is required"));
+        }
+
+        String qualityError = openCvImageQualityService.validate(image);
+        if (qualityError != null) {
+            return ResponseEntity.badRequest().body(Map.of("message", qualityError));
         }
 
         employee.setFaceTemplateRef(faceService.hash(image));
