@@ -37,19 +37,27 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        String username = request.getUsername().trim();
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        String username = request.getUsername() != null ? request.getUsername().trim() : "";
         String password = request.getPassword();
         String companySlugParam = request.getCompanySlug() != null ? request.getCompanySlug().trim() : "";
+
+        if (username.isBlank() || password == null || password.isBlank()) {
+            return ResponseEntity.status(401).body(Map.of("message", "Invalid credentials"));
+        }
 
         AppUser user;
 
         if (!companySlugParam.isEmpty()) {
             // Company slug provided: use existing flow (company::username)
             String principal = companySlugParam + "::" + username;
-            Authentication auth = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(principal, password)
-            );
+            try {
+                authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(principal, password)
+                );
+            } catch (Exception ex) {
+                return ResponseEntity.status(401).body(Map.of("message", "Invalid credentials"));
+            }
             user = userRepository.findByUsernameAndCompanySlug(username, companySlugParam).orElse(null);
         } else {
             // No company slug: find user by username across all companies and verify password
@@ -62,12 +70,16 @@ public class AuthController {
                 }
             }
             if (user == null) {
-                return ResponseEntity.status(401).body(null);
+                return ResponseEntity.status(401).body(Map.of("message", "Invalid credentials"));
             }
         }
 
         if (user == null) {
-            return ResponseEntity.status(401).body(null);
+            return ResponseEntity.status(401).body(Map.of("message", "Invalid credentials"));
+        }
+
+        if (user.getCompany() != null && !user.getCompany().isActive()) {
+            return ResponseEntity.status(403).body(Map.of("message", "Company account is inactive. Please contact system administrator."));
         }
 
         String principal = (user.getCompany() != null ? user.getCompany().getSlug() : "default") + "::" + user.getUsername();

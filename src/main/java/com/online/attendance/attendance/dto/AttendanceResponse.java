@@ -1,6 +1,8 @@
 package com.online.attendance.attendance.dto;
 
 import com.online.attendance.attendance.AttendanceStatus;
+import com.online.attendance.attendance.ClockOutType;
+import com.online.attendance.attendance.CompanyPurposeStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -28,6 +30,10 @@ public class AttendanceResponse {
     private boolean faceVerified;
 
     private AttendanceStatus status;
+
+    private ClockOutType clockOutType;
+    private CompanyPurposeStatus companyPurposeStatus;
+    private String companyPurposeNote;
 
     /**
      * Total worked minutes for this attendance record.

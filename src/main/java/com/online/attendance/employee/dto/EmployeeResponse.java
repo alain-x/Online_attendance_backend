@@ -3,6 +3,8 @@ package com.online.attendance.employee.dto;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.math.BigDecimal;
+
 @Getter
 @AllArgsConstructor
 public class EmployeeResponse {
@@ -16,4 +18,6 @@ public class EmployeeResponse {
     private String category;
     private String username;
     private String role;
+
+    private BigDecimal hourlyRateOverride;
 }

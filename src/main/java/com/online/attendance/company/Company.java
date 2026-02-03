@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "companies", uniqueConstraints = {
         @UniqueConstraint(name = "uk_companies_slug", columnNames = "slug")
@@ -27,6 +29,12 @@ public class Company {
 
     @Column(name = "logo_url", length = 500)
     private String logoUrl;
+
+    @Column(name = "hourly_rate_default", precision = 12, scale = 2)
+    private BigDecimal hourlyRateDefault;
+
+    @Column(nullable = false)
+    private boolean active = true;
 
     /** Parent company (e.g. PRI). Null for root companies. Branches (e.g. PowerX, PowerM) reference the parent. */
     @ManyToOne(fetch = FetchType.LAZY)

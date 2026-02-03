@@ -11,5 +11,7 @@ public interface AttendanceRepository extends JpaRepository<AttendanceRecord, Lo
     List<AttendanceRecord> findByEmployeeUserUsernameAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(String username, Long companyId);
     List<AttendanceRecord> findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(Instant from, Instant to, Long companyId);
 
+    List<AttendanceRecord> findByCheckInTimeBetweenAndEmployeeUserCompanyIdAndCheckOutTimeIsNotNullOrderByCheckInTimeAsc(Instant from, Instant to, Long companyId);
+
     Optional<AttendanceRecord> findByIdAndEmployeeUserCompanyId(Long id, Long companyId);
 }

@@ -9,6 +9,8 @@ import com.online.attendance.face.OpenCvImageQualityService;
 import com.online.attendance.face.FaceService;
 import com.online.attendance.location.LocationVerificationService;
 import com.online.attendance.security.CurrentCompanyService;
+import com.online.attendance.user.AppUser;
+import com.online.attendance.user.UserRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.MediaType;
@@ -38,6 +40,7 @@ public class AttendanceController {
     private final OpenCvImageQualityService openCvImageQualityService;
     private final CurrentCompanyService currentCompanyService;
     private final AuditService auditService;
+    private final UserRepository userRepository;
 
     public AttendanceController(
             AttendanceRepository attendanceRepository,
@@ -47,7 +50,8 @@ public class AttendanceController {
             FaceService faceService,
             OpenCvImageQualityService openCvImageQualityService,
             CurrentCompanyService currentCompanyService,
-            AuditService auditService
+            AuditService auditService,
+            UserRepository userRepository
     ) {
         this.attendanceRepository = attendanceRepository;
         this.breakRepository = breakRepository;
@@ -57,6 +61,7 @@ public class AttendanceController {
         this.openCvImageQualityService = openCvImageQualityService;
         this.currentCompanyService = currentCompanyService;
         this.auditService = auditService;
+        this.userRepository = userRepository;
     }
 
     @PreAuthorize("hasRole('EMPLOYEE')")
@@ -67,6 +72,13 @@ public class AttendanceController {
             @RequestPart(value = "descriptor", required = false) String descriptorJson) {
         if (image.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Image is required"));
+        }
+
+        if (descriptorJson == null || descriptorJson.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message",
+                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
+            ));
         }
 
         String qualityError = openCvImageQualityService.validate(image);
@@ -192,13 +204,12 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", checkInQualityError));
         }
 
-        if (!faceService.hasEnrollment(employee)) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll your face first before checking in."));
-        }
-
-        boolean faceVerified = faceService.verify(employee, image, descriptorJson);
-        if (!faceVerified) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
+        boolean faceVerified = false;
+        if (faceService.hasEnrollment(employee) && descriptorJson != null && !descriptorJson.isBlank()) {
+            faceVerified = faceService.verify(employee, image, descriptorJson);
+            if (!faceVerified) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
+            }
         }
 
         boolean alreadyCheckedIn = attendanceRepository
@@ -220,7 +231,7 @@ public class AttendanceController {
                 .checkInLat(latitude)
                 .checkInLng(longitude)
                 .locationVerified(locationVerified)
-                .faceVerified(true)
+                .faceVerified(faceVerified)
                 .status(AttendanceStatus.PRESENT)
                 .build();
 
@@ -231,8 +242,167 @@ public class AttendanceController {
                 "CHECK_IN",
                 "AttendanceRecord",
                 record.getId(),
-                "{\"lat\":" + latitude + ",\"lng\":" + longitude + ",\"locationVerified\":" + locationVerified + ",\"faceVerified\":true}"
+                "{\"lat\":" + latitude + ",\"lng\":" + longitude + ",\"locationVerified\":" + locationVerified + ",\"faceVerified\":" + faceVerified + "}"
         );
+        return ResponseEntity.ok(toResponse(record));
+    }
+
+    @PreAuthorize("hasRole('EMPLOYEE')")
+    @PostMapping(value = "/check-out/company-purpose", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> checkOutCompanyPurpose(
+            Authentication authentication,
+            @RequestPart("image") @NotNull MultipartFile image,
+            @RequestPart(value = "descriptor", required = false) String descriptorJson,
+            @RequestParam("latitude") double latitude,
+            @RequestParam("longitude") double longitude,
+            @RequestParam("note") String note
+    ) {
+        Company company = currentCompanyService.requireCompany(authentication);
+        String username = currentCompanyService.requireUsername(authentication);
+
+        if (note == null || note.trim().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Note is required for company purpose clock-out"));
+        }
+
+        AttendanceRecord record = attendanceRepository
+                .findTopByEmployeeUserUsernameAndEmployeeUserCompanyIdAndCheckOutTimeIsNullOrderByCheckInTimeDesc(username, company.getId())
+                .orElse(null);
+
+        if (record == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No active check-in found"));
+        }
+
+        if (image.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Image is required for check-out. Please take or upload a photo."));
+        }
+
+        String checkOutQualityError = openCvImageQualityService.validate(image);
+        if (checkOutQualityError != null) {
+            return ResponseEntity.badRequest().body(Map.of("message", checkOutQualityError));
+        }
+
+        Employee employee = record.getEmployee();
+        boolean faceVerified = false;
+        if (faceService.hasEnrollment(employee) && descriptorJson != null && !descriptorJson.isBlank()) {
+            faceVerified = faceService.verify(employee, image, descriptorJson);
+            if (!faceVerified) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
+            }
+        }
+
+        record.setCheckOutTime(Instant.now());
+        record.setCheckOutLat(latitude);
+        record.setCheckOutLng(longitude);
+        record.setFaceVerified(faceVerified);
+        record.setClockOutType(ClockOutType.COMPANY_PURPOSE);
+        record.setCompanyPurposeStatus(CompanyPurposeStatus.PENDING);
+        record.setCompanyPurposeNote(note.trim());
+        record.setCompanyPurposeApprovedAt(null);
+        record.setCompanyPurposeApprovedBy(null);
+        record.setCompanyPurposeDecisionNote(null);
+
+        boolean locationVerified = locationVerificationService.isWithinAnyActiveLocation(
+                company.getId(),
+                latitude,
+                longitude
+        );
+        record.setLocationVerified(record.isLocationVerified() && locationVerified);
+
+        record = attendanceRepository.save(record);
+        auditService.log(
+                company.getId(),
+                username,
+                "CHECK_OUT_COMPANY_PURPOSE",
+                "AttendanceRecord",
+                record.getId(),
+                "{\"lat\":" + latitude + ",\"lng\":" + longitude + ",\"locationVerified\":" + locationVerified + ",\"faceVerified\":" + faceVerified + ",\"status\":\"PENDING\"}"
+        );
+
+        return ResponseEntity.ok(toResponse(record));
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER','PAYROLL','AUDITOR')")
+    @GetMapping("/company-purpose/pending")
+    public List<AttendanceResponse> listPendingCompanyPurpose(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        Instant from = today.minusDays(31).atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant to = today.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        return attendanceRepository.findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(from, to, company.getId())
+                .stream()
+                .filter(r -> (r.getClockOutType() == ClockOutType.COMPANY_PURPOSE) && (r.getCompanyPurposeStatus() == CompanyPurposeStatus.PENDING))
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    public static class CompanyPurposeDecisionRequest {
+        private String note;
+
+        public String getNote() {
+            return note;
+        }
+
+        public void setNote(String note) {
+            this.note = note;
+        }
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER','PAYROLL','AUDITOR')")
+    @PostMapping("/{id}/company-purpose/approve")
+    public ResponseEntity<?> approveCompanyPurpose(Authentication authentication, @PathVariable Long id, @RequestBody(required = false) CompanyPurposeDecisionRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        AttendanceRecord record = attendanceRepository.findByIdAndEmployeeUserCompanyId(id, company.getId()).orElse(null);
+        if (record == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Attendance record not found"));
+        }
+        if (record.getClockOutType() != ClockOutType.COMPANY_PURPOSE || record.getCompanyPurposeStatus() != CompanyPurposeStatus.PENDING) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Attendance record is not pending company purpose"));
+        }
+
+        String approverUsername = currentCompanyService.requireUsername(authentication);
+        String companySlug = currentCompanyService.requireCompanySlug(authentication);
+        AppUser approver = userRepository.findByUsernameAndCompanySlug(approverUsername, companySlug).orElse(null);
+        if (approver == null) {
+            return ResponseEntity.status(400).body(Map.of("message", "Approver user not found"));
+        }
+
+        record.setCompanyPurposeStatus(CompanyPurposeStatus.APPROVED);
+        record.setCompanyPurposeApprovedBy(approver);
+        record.setCompanyPurposeApprovedAt(Instant.now());
+        record.setCompanyPurposeDecisionNote(request != null && request.getNote() != null && !request.getNote().trim().isBlank() ? request.getNote().trim() : null);
+        record = attendanceRepository.save(record);
+
+        auditService.log(company.getId(), approverUsername, "COMPANY_PURPOSE_APPROVE", "AttendanceRecord", record.getId(), null);
+        return ResponseEntity.ok(toResponse(record));
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER','PAYROLL','AUDITOR')")
+    @PostMapping("/{id}/company-purpose/reject")
+    public ResponseEntity<?> rejectCompanyPurpose(Authentication authentication, @PathVariable Long id, @RequestBody(required = false) CompanyPurposeDecisionRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        AttendanceRecord record = attendanceRepository.findByIdAndEmployeeUserCompanyId(id, company.getId()).orElse(null);
+        if (record == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Attendance record not found"));
+        }
+        if (record.getClockOutType() != ClockOutType.COMPANY_PURPOSE || record.getCompanyPurposeStatus() != CompanyPurposeStatus.PENDING) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Attendance record is not pending company purpose"));
+        }
+
+        String approverUsername = currentCompanyService.requireUsername(authentication);
+        String companySlug = currentCompanyService.requireCompanySlug(authentication);
+        AppUser approver = userRepository.findByUsernameAndCompanySlug(approverUsername, companySlug).orElse(null);
+        if (approver == null) {
+            return ResponseEntity.status(400).body(Map.of("message", "Approver user not found"));
+        }
+
+        record.setCompanyPurposeStatus(CompanyPurposeStatus.REJECTED);
+        record.setCompanyPurposeApprovedBy(approver);
+        record.setCompanyPurposeApprovedAt(Instant.now());
+        record.setCompanyPurposeDecisionNote(request != null && request.getNote() != null && !request.getNote().trim().isBlank() ? request.getNote().trim() : null);
+        record = attendanceRepository.save(record);
+
+        auditService.log(company.getId(), approverUsername, "COMPANY_PURPOSE_REJECT", "AttendanceRecord", record.getId(), null);
         return ResponseEntity.ok(toResponse(record));
     }
 
@@ -266,19 +436,24 @@ public class AttendanceController {
         }
 
         Employee employee = record.getEmployee();
-        if (!faceService.hasEnrollment(employee)) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Cannot verify check-out."));
-        }
-
-        boolean faceVerified = faceService.verify(employee, image, descriptorJson);
-        if (!faceVerified) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
+        boolean faceVerified = false;
+        if (faceService.hasEnrollment(employee) && descriptorJson != null && !descriptorJson.isBlank()) {
+            faceVerified = faceService.verify(employee, image, descriptorJson);
+            if (!faceVerified) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
+            }
         }
 
         record.setCheckOutTime(Instant.now());
         record.setCheckOutLat(latitude);
         record.setCheckOutLng(longitude);
-        record.setFaceVerified(true);
+        record.setFaceVerified(faceVerified);
+        record.setClockOutType(ClockOutType.NORMAL);
+        record.setCompanyPurposeStatus(CompanyPurposeStatus.NONE);
+        record.setCompanyPurposeNote(null);
+        record.setCompanyPurposeApprovedAt(null);
+        record.setCompanyPurposeApprovedBy(null);
+        record.setCompanyPurposeDecisionNote(null);
 
         boolean locationVerified = locationVerificationService.isWithinAnyActiveLocation(
                 company.getId(),
@@ -294,7 +469,7 @@ public class AttendanceController {
                 "CHECK_OUT",
                 "AttendanceRecord",
                 record.getId(),
-                "{\"lat\":" + latitude + ",\"lng\":" + longitude + ",\"locationVerified\":" + locationVerified + ",\"faceVerified\":true}"
+                "{\"lat\":" + latitude + ",\"lng\":" + longitude + ",\"locationVerified\":" + locationVerified + ",\"faceVerified\":" + faceVerified + "}"
         );
         return ResponseEntity.ok(toResponse(record));
     }
@@ -565,6 +740,9 @@ public class AttendanceController {
                 record.isLocationVerified(),
                 record.isFaceVerified(),
                 record.getStatus(),
+                record.getClockOutType() != null ? record.getClockOutType() : ClockOutType.NORMAL,
+                record.getCompanyPurposeStatus() != null ? record.getCompanyPurposeStatus() : CompanyPurposeStatus.NONE,
+                record.getCompanyPurposeNote(),
                 workedMinutes,
                 breakMinutes
         );
@@ -595,6 +773,13 @@ public class AttendanceController {
         if (record.getCheckInTime() == null || record.getCheckOutTime() == null) {
             return 0;
         }
+
+        ClockOutType type = record.getClockOutType() != null ? record.getClockOutType() : ClockOutType.NORMAL;
+        CompanyPurposeStatus cp = record.getCompanyPurposeStatus() != null ? record.getCompanyPurposeStatus() : CompanyPurposeStatus.NONE;
+        if (type == ClockOutType.COMPANY_PURPOSE && cp != CompanyPurposeStatus.APPROVED) {
+            return 0;
+        }
+
         Duration total = Duration.between(record.getCheckInTime(), record.getCheckOutTime());
         long totalMinutes = Math.max(0, total.toMinutes());
         long net = totalMinutes - breakMinutes;

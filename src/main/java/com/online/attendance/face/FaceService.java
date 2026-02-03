@@ -32,9 +32,7 @@ public class FaceService {
     }
 
     public boolean hasEnrollment(Employee employee) {
-        boolean hasTemplate = employee.getFaceTemplateRef() != null && !employee.getFaceTemplateRef().isBlank();
-        boolean hasDescriptor = employee.getFaceDescriptor() != null && !employee.getFaceDescriptor().isBlank();
-        return hasTemplate || hasDescriptor;
+        return employee.getFaceDescriptor() != null && !employee.getFaceDescriptor().isBlank();
     }
 
     public boolean verify(Employee employee, MultipartFile image) {
@@ -50,20 +48,20 @@ public class FaceService {
         if (!hasEnrollment(employee)) {
             return false;
         }
-        if (employee.getFaceDescriptor() != null && !employee.getFaceDescriptor().isBlank()
-                && candidateDescriptorJson != null && !candidateDescriptorJson.isBlank()) {
-            try {
-                List<Double> stored = objectMapper.readValue(employee.getFaceDescriptor(), new TypeReference<>() {});
-                List<Double> candidate = objectMapper.readValue(candidateDescriptorJson, new TypeReference<>() {});
-                if (stored.size() == 128 && candidate.size() == 128) {
-                    double distance = euclideanDistance(stored, candidate);
-                    return distance < FACE_DESCRIPTOR_THRESHOLD;
-                }
-            } catch (Exception ignored) {
-            }
+        if (candidateDescriptorJson == null || candidateDescriptorJson.isBlank()) {
+            return false;
         }
-        String candidate = hash(image);
-        return candidate.equals(employee.getFaceTemplateRef());
+        try {
+            List<Double> stored = objectMapper.readValue(employee.getFaceDescriptor(), new TypeReference<>() {});
+            List<Double> candidate = objectMapper.readValue(candidateDescriptorJson, new TypeReference<>() {});
+            if (stored.size() != 128 || candidate.size() != 128) {
+                return false;
+            }
+            double distance = euclideanDistance(stored, candidate);
+            return distance < FACE_DESCRIPTOR_THRESHOLD;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static double euclideanDistance(List<Double> a, List<Double> b) {

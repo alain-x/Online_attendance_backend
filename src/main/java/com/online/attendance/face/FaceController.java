@@ -60,10 +60,14 @@ public class FaceController {
             return ResponseEntity.badRequest().body(Map.of("message", qualityError));
         }
 
-        employee.setFaceTemplateRef(faceService.hash(image));
-        if (descriptorJson != null && !descriptorJson.isBlank()) {
-            employee.setFaceDescriptor(descriptorJson);
+        if (descriptorJson == null || descriptorJson.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message",
+                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try enrolling again with a clear face photo."
+            ));
         }
+
+        employee.setFaceDescriptor(descriptorJson);
         employeeRepository.save(employee);
 
         auditService.log(

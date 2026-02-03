@@ -78,7 +78,7 @@ public class CompanyController {
         return ResponseEntity.ok(company);
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @PutMapping("/{id}")
     public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id,
                                     @Valid @RequestBody UpdateCompanyRequest request) {
@@ -103,6 +103,9 @@ public class CompanyController {
             String v = request.getLogoUrl().trim();
             company.setLogoUrl(v.isBlank() ? null : v);
         }
+        if (request.getHourlyRateDefault() != null) {
+            company.setHourlyRateDefault(request.getHourlyRateDefault());
+        }
         company = companyRepository.save(company);
         return ResponseEntity.ok(company);
     }
@@ -124,6 +127,22 @@ public class CompanyController {
         }
         companyRepository.delete(company);
         return ResponseEntity.ok(Map.of("deleted", true));
+    }
+
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PutMapping("/{id}/active")
+    public ResponseEntity<?> setActive(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        Company company = companyRepository.findById(id).orElse(null);
+        if (company == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Object activeObj = body != null ? body.get("active") : null;
+        if (!(activeObj instanceof Boolean)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Field 'active' (boolean) is required"));
+        }
+        company.setActive((Boolean) activeObj);
+        company = companyRepository.save(company);
+        return ResponseEntity.ok(company);
     }
 
     private boolean canManageCompany(Authentication authentication, Company company) {

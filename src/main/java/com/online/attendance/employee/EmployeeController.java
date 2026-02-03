@@ -68,6 +68,7 @@ public class EmployeeController {
                 .mobile(request.getMobile())
                 .designation(request.getDesignation())
                 .category(request.getCategory())
+                .hourlyRateOverride(request.getHourlyRateOverride())
                 .user(user)
                 .build();
 
@@ -109,6 +110,9 @@ public class EmployeeController {
         employee.setMobile(request.getMobile());
         employee.setDesignation(request.getDesignation());
         employee.setCategory(request.getCategory());
+        if (request.getHourlyRateOverride() != null) {
+            employee.setHourlyRateOverride(request.getHourlyRateOverride());
+        }
 
         AppUser user = employee.getUser();
 
@@ -172,7 +176,8 @@ public class EmployeeController {
                 employee.getDesignation(),
                 employee.getCategory(),
                 employee.getUser().getUsername(),
-                employee.getUser().getRole().name()
+                employee.getUser().getRole().name(),
+                employee.getHourlyRateOverride()
         );
     }
 }
