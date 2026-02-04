@@ -25,7 +25,7 @@ public class WorkLocationController {
         this.currentCompanyService = currentCompanyService;
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @PostMapping
     public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateWorkLocationRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -42,14 +42,14 @@ public class WorkLocationController {
         return ResponseEntity.ok(location);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER')")
     @GetMapping
     public List<WorkLocation> list(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
         return workLocationRepository.findByCompanyId(company.getId());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER')")
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -60,14 +60,14 @@ public class WorkLocationController {
         return ResponseEntity.ok(location);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER','EMPLOYEE')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER','EMPLOYEE')")
     @GetMapping("/active")
     public List<WorkLocation> listActive(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
         return workLocationRepository.findByActiveTrueAndCompanyId(company.getId());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @PutMapping("/{id}/active")
     public ResponseEntity<?> setActive(Authentication authentication, @PathVariable Long id, @RequestParam boolean active, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -79,7 +79,7 @@ public class WorkLocationController {
         return ResponseEntity.ok(workLocationRepository.save(location));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @PutMapping("/{id}")
     public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @Valid @RequestBody UpdateWorkLocationRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -97,7 +97,7 @@ public class WorkLocationController {
         return ResponseEntity.ok(workLocationRepository.save(location));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);

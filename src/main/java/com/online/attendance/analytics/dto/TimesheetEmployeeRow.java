@@ -23,4 +23,6 @@ public class TimesheetEmployeeRow {
 
     private long workedMinutes;
     private long overtimeMinutes;
+
+    private long breakMinutes;
 }

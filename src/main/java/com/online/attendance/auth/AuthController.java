@@ -116,7 +116,8 @@ public class AuthController {
                 "username", user.getUsername(),
                 "role", user.getRole().name(),
                 "companyId", user.getCompany() != null ? user.getCompany().getId() : null,
-                "companySlug", user.getCompany() != null ? user.getCompany().getSlug() : null
+                "companySlug", user.getCompany() != null ? user.getCompany().getSlug() : null,
+                "companyLogoUrl", user.getCompany() != null ? user.getCompany().getLogoUrl() : null
         ));
     }
 }

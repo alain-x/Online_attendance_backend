@@ -7,6 +7,11 @@ import com.online.attendance.attendance.BreakRepository;
 import com.online.attendance.company.Company;
 import com.online.attendance.employee.Employee;
 import com.online.attendance.employee.EmployeeRepository;
+import com.online.attendance.holiday.Holiday;
+import com.online.attendance.holiday.HolidayRepository;
+import com.online.attendance.leave.LeaveRequest;
+import com.online.attendance.leave.LeaveRequestRepository;
+import com.online.attendance.leave.LeaveRequestStatus;
 import com.online.attendance.analytics.dto.DayAttendanceResponse;
 import com.online.attendance.analytics.dto.DayEmployeeRow;
 import com.online.attendance.analytics.dto.TimesheetCell;
@@ -43,21 +48,27 @@ public class AnalyticsController {
     private final AttendanceRepository attendanceRepository;
     private final BreakRepository breakRepository;
     private final EmployeeRepository employeeRepository;
+    private final HolidayRepository holidayRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
     private final CurrentCompanyService currentCompanyService;
 
     public AnalyticsController(
             AttendanceRepository attendanceRepository,
             BreakRepository breakRepository,
             EmployeeRepository employeeRepository,
+            HolidayRepository holidayRepository,
+            LeaveRequestRepository leaveRequestRepository,
             CurrentCompanyService currentCompanyService
     ) {
         this.attendanceRepository = attendanceRepository;
         this.breakRepository = breakRepository;
         this.employeeRepository = employeeRepository;
+        this.holidayRepository = holidayRepository;
+        this.leaveRequestRepository = leaveRequestRepository;
         this.currentCompanyService = currentCompanyService;
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER')")
     @GetMapping("/home")
     public HomeAnalyticsResponse home(Authentication authentication,
                                      @RequestHeader(value = "X-Company-Id", required = false) Long companyId,
@@ -159,6 +170,9 @@ public class AnalyticsController {
         LocalDate day = (date == null || date.isBlank())
                 ? LocalDate.now(ZoneOffset.UTC)
                 : LocalDate.parse(date);
+
+        boolean isHoliday = holidayRepository.existsByCompanyIdAndDate(effectiveCompanyId, day);
+        boolean isWeeklyOff = day.getDayOfWeek().getValue() == 7;
         Instant from = day.atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant to = day.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
 
@@ -187,6 +201,7 @@ public class AnalyticsController {
 
             long breakMinutes = calculateBreakMinutes(r);
             long workedMinutes = calculateWorkedMinutes(r, breakMinutes);
+            agg.breakMinutes += breakMinutes;
             agg.workedMinutes += workedMinutes;
 
             long extra = workedMinutes - STANDARD_WORKDAY_MINUTES;
@@ -242,20 +257,28 @@ public class AnalyticsController {
         long totalStaff = employees.size();
         long notIn = Math.max(0, totalStaff - present);
 
+        long holidays = 0;
+        long weeklyOff = 0;
+        if (isHoliday) {
+            holidays = notIn;
+        } else if (isWeeklyOff) {
+            weeklyOff = notIn;
+        }
+
         return new DayAttendanceResponse(
                 day.toString(),
                 totalStaff,
                 present,
                 notIn,
-                0,
-                0,
+                holidays,
+                weeklyOff,
                 workedMinutesTotal,
                 overtimeMinutesTotal,
                 rows
         );
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER')")
     @GetMapping("/timesheet")
     public TimesheetResponse timesheet(
             Authentication authentication,
@@ -272,6 +295,42 @@ public class AnalyticsController {
         YearMonth ym = YearMonth.of(year, month);
         Instant from = ym.atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant to = ym.plusMonths(1).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        LocalDate holidayFrom = ym.atDay(1);
+        LocalDate holidayTo = ym.atEndOfMonth();
+        List<Holiday> holidays = holidayRepository.findByCompanyIdAndDateBetweenOrderByDateAsc(effectiveCompanyId, holidayFrom, holidayTo);
+        Set<LocalDate> holidayDates = new HashSet<>();
+        for (Holiday h : holidays) {
+            if (h.getDate() != null) {
+                holidayDates.add(h.getDate());
+            }
+        }
+
+        List<LeaveRequest> approvedLeave = leaveRequestRepository
+                .findByCompanyIdAndFromDateLessThanEqualAndToDateGreaterThanEqualAndStatus(
+                        effectiveCompanyId,
+                        holidayTo,
+                        holidayFrom,
+                        LeaveRequestStatus.APPROVED
+                );
+        Map<Long, Set<LocalDate>> leaveDatesByEmployee = new HashMap<>();
+        for (LeaveRequest lr : approvedLeave) {
+            if (lr.getEmployee() == null || lr.getEmployee().getId() == null) continue;
+            Long empId = lr.getEmployee().getId();
+
+            LocalDate start = lr.getFromDate();
+            LocalDate end = lr.getToDate();
+            if (start == null || end == null) continue;
+
+            LocalDate s = start.isBefore(holidayFrom) ? holidayFrom : start;
+            LocalDate e = end.isAfter(holidayTo) ? holidayTo : end;
+            if (s.isAfter(e)) continue;
+
+            Set<LocalDate> set = leaveDatesByEmployee.computeIfAbsent(empId, k -> new HashSet<>());
+            for (LocalDate d = s; !d.isAfter(e); d = d.plusDays(1)) {
+                set.add(d);
+            }
+        }
 
         List<Employee> allEmployees = employeeRepository.findByUserCompanyId(effectiveCompanyId);
         List<Employee> employees = filterEmployees(allEmployees, department, roleScope, search);
@@ -323,6 +382,7 @@ public class AnalyticsController {
             long offDays = 0;
             long workedMinutesTotal = 0;
             long overtimeMinutesTotal = 0;
+            long breakMinutesTotal = 0;
 
             List<TimesheetCell> cells = new ArrayList<>(daysInMonth);
             for (int i = 1; i <= daysInMonth; i++) {
@@ -332,10 +392,17 @@ public class AnalyticsController {
                     presentDays++;
                     workedMinutesTotal += agg.workedMinutes;
                     overtimeMinutesTotal += agg.overtimeMinutes;
-                    cells.add(new TimesheetCell("PRESENT", agg.workedMinutes, agg.overtimeMinutes));
+                    breakMinutesTotal += agg.breakMinutes;
+                    cells.add(new TimesheetCell("PRESENT", agg.workedMinutes, agg.overtimeMinutes, agg.breakMinutes));
                 } else {
                     offDays++;
-                    cells.add(new TimesheetCell("OFF", 0, 0));
+                    if (holidayDates.contains(d)) {
+                        cells.add(new TimesheetCell("HOLIDAY", 0, 0, 0));
+                    } else if (leaveDatesByEmployee.getOrDefault(e.getId(), Collections.emptySet()).contains(d)) {
+                        cells.add(new TimesheetCell("LEAVE", 0, 0, 0));
+                    } else {
+                        cells.add(new TimesheetCell("OFF", 0, 0, 0));
+                    }
                 }
             }
 
@@ -350,7 +417,8 @@ public class AnalyticsController {
                     presentDays,
                     offDays,
                     workedMinutesTotal,
-                    overtimeMinutesTotal
+                    overtimeMinutesTotal,
+                    breakMinutesTotal
             ));
         }
 
@@ -416,6 +484,7 @@ public class AnalyticsController {
         Instant latestOut;
         long workedMinutes;
         long overtimeMinutes;
+        long breakMinutes;
     }
 
     /**

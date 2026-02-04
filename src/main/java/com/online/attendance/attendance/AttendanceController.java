@@ -1,14 +1,16 @@
 package com.online.attendance.attendance;
 
-import com.online.attendance.audit.AuditService;
 import com.online.attendance.attendance.dto.AttendanceResponse;
+import com.online.attendance.attendance.dto.CheckInRequest;
+import com.online.attendance.attendance.dto.CheckOutRequest;
+import com.online.attendance.attendance.dto.VerifyFaceResponse;
+import com.online.attendance.attendance.dto.BulkTimesheetImportRequest;
+import com.online.attendance.attendance.dto.BulkTimesheetImportResponse;
 import com.online.attendance.company.Company;
 import com.online.attendance.employee.Employee;
 import com.online.attendance.employee.EmployeeRepository;
-import com.online.attendance.face.OpenCvImageQualityService;
-import com.online.attendance.face.FaceService;
-import com.online.attendance.location.LocationVerificationService;
 import com.online.attendance.security.CurrentCompanyService;
+import com.online.attendance.location.LocationVerificationService;
 import com.online.attendance.user.AppUser;
 import com.online.attendance.user.UserRepository;
 import jakarta.validation.Valid;
@@ -24,8 +26,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -484,7 +485,7 @@ public class AttendanceController {
                 .collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER')")
     @GetMapping
     public List<AttendanceResponse> listToday(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -497,7 +498,7 @@ public class AttendanceController {
                 .collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -508,7 +509,7 @@ public class AttendanceController {
         return ResponseEntity.ok(toResponse(record));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @GetMapping("/employee/{employeeId}")
     public ResponseEntity<?> listByEmployee(Authentication authentication, @PathVariable Long employeeId, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -530,7 +531,7 @@ public class AttendanceController {
         );
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @PostMapping("/admin")
     public ResponseEntity<?> createForEmployee(Authentication authentication, @Valid @RequestBody AdminUpsertAttendanceRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -562,7 +563,67 @@ public class AttendanceController {
         return ResponseEntity.ok(toResponse(record));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
+    @PostMapping("/admin/bulk")
+    public ResponseEntity<?> bulkCreateForEmployees(Authentication authentication,
+                                                    @Valid @RequestBody BulkTimesheetImportRequest request,
+                                                    @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
+
+        List<BulkTimesheetImportResponse.RowResult> results = new ArrayList<>();
+        int ok = 0;
+        int failed = 0;
+
+        List<BulkTimesheetImportRequest.Row> rows = request.getRows() != null ? request.getRows() : List.of();
+        for (int i = 0; i < rows.size(); i += 1) {
+            BulkTimesheetImportRequest.Row row = rows.get(i);
+            Long employeeId = row.getEmployeeId();
+            try {
+                Employee employee = employeeRepository.findByIdAndUserCompanyId(employeeId, company.getId()).orElse(null);
+                if (employee == null) {
+                    failed += 1;
+                    results.add(new BulkTimesheetImportResponse.RowResult(i, employeeId, false, "Employee not found", null));
+                    continue;
+                }
+                if (row.getCheckInTime() == null || row.getCheckOutTime() == null) {
+                    failed += 1;
+                    results.add(new BulkTimesheetImportResponse.RowResult(i, employeeId, false, "checkInTime and checkOutTime are required", null));
+                    continue;
+                }
+                if (!row.getCheckOutTime().isAfter(row.getCheckInTime())) {
+                    failed += 1;
+                    results.add(new BulkTimesheetImportResponse.RowResult(i, employeeId, false, "checkOutTime must be after checkInTime", null));
+                    continue;
+                }
+
+                AttendanceRecord record = AttendanceRecord.builder()
+                        .employee(employee)
+                        .checkInTime(row.getCheckInTime())
+                        .checkOutTime(row.getCheckOutTime())
+                        .locationVerified(row.getLocationVerified() != null ? row.getLocationVerified() : false)
+                        .faceVerified(row.getFaceVerified() != null ? row.getFaceVerified() : false)
+                        .status(AttendanceStatus.PRESENT)
+                        .build();
+
+                record = attendanceRepository.save(record);
+                ok += 1;
+                results.add(new BulkTimesheetImportResponse.RowResult(i, employeeId, true, "OK", record.getId()));
+            } catch (Exception e) {
+                failed += 1;
+                results.add(new BulkTimesheetImportResponse.RowResult(i, employeeId, false, e.getMessage() != null ? e.getMessage() : "Failed", null));
+            }
+        }
+
+        auditService.log(company.getId(), currentCompanyService.requireUsername(authentication), "TIMESHEET_IMPORT", "AttendanceRecord", null, Map.of(
+                "ok", ok,
+                "failed", failed,
+                "total", rows.size()
+        ));
+
+        return ResponseEntity.ok(new BulkTimesheetImportResponse(ok, failed, results));
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @PatchMapping("/admin/{id}")
     public ResponseEntity<?> updateForEmployee(Authentication authentication, @PathVariable Long id, @RequestBody AdminUpsertAttendanceRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -612,7 +673,7 @@ public class AttendanceController {
         return ResponseEntity.ok(toResponse(record));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @DeleteMapping("/admin/{id}")
     public ResponseEntity<?> deleteForEmployee(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);

@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.util.Map;
 
@@ -39,13 +40,14 @@ public class FaceController {
         this.auditService = auditService;
     }
 
-    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','EMPLOYEE', 'ADMIN')")
     @PostMapping(value = "/enroll", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> enroll(
             Authentication authentication,
             @RequestPart("image") @NotNull MultipartFile image,
-            @RequestPart(value = "descriptor", required = false) String descriptorJson) {
-        Company company = currentCompanyService.requireCompany(authentication);
+            @RequestPart(value = "descriptor", required = false) String descriptorJson,
+            @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
         Employee employee = employeeRepository.findByUserUsernameAndUserCompanyId(currentCompanyService.requireUsername(authentication), company.getId()).orElse(null);
         if (employee == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Employee profile not found"));

@@ -51,7 +51,7 @@ public class ReportsController {
      * date, employeeCode, firstName, lastName, checkInTimeUtc, checkOutTimeUtc,
      * locationVerified, faceVerified, status, breakMinutes, workedMinutes
      */
-    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR','MANAGER')")
     @GetMapping(value = "/daily-attendance.csv", produces = "text/csv")
     public ResponseEntity<byte[]> dailyAttendanceCsv(
             Authentication authentication,

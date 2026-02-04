@@ -11,4 +11,7 @@ public class TimesheetCell {
 
     private long workedMinutes;
     private long overtimeMinutes;
+
+    /** Unpaid break minutes (closed breaks only). */
+    private long breakMinutes;
 }
