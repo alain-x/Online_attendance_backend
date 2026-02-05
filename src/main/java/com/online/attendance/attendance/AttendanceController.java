@@ -67,7 +67,7 @@ public class AttendanceController {
         this.userRepository = userRepository;
     }
 
-    @PreAuthorize("hasRole('EMPLOYEE')")
+    @PreAuthorize("isAuthenticated()")
     @PostMapping(value = "/face/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> verifyFace(
             Authentication authentication,
@@ -124,7 +124,7 @@ public class AttendanceController {
         ));
     }
 
-    @PreAuthorize("hasRole('EMPLOYEE')")
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/break/start")
     public ResponseEntity<?> startBreak(Authentication authentication) {
         Company company = currentCompanyService.requireCompany(authentication);
@@ -154,7 +154,7 @@ public class AttendanceController {
         return ResponseEntity.ok(saved);
     }
 
-    @PreAuthorize("hasRole('EMPLOYEE')")
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/break/end")
     public ResponseEntity<?> endBreak(Authentication authentication) {
         Company company = currentCompanyService.requireCompany(authentication);
@@ -180,7 +180,7 @@ public class AttendanceController {
         return ResponseEntity.ok(saved);
     }
 
-    @PreAuthorize("hasRole('EMPLOYEE')")
+    @PreAuthorize("isAuthenticated()")
     @PostMapping(value = "/check-in", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> checkIn(
             Authentication authentication,
@@ -334,7 +334,7 @@ public class AttendanceController {
         return ResponseEntity.ok(toResponse(record));
     }
 
-    @PreAuthorize("hasRole('EMPLOYEE')")
+    @PreAuthorize("isAuthenticated()")
     @PostMapping(value = "/check-out/company-purpose", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> checkOutCompanyPurpose(
             Authentication authentication,
@@ -498,7 +498,7 @@ public class AttendanceController {
         return ResponseEntity.ok(toResponse(record));
     }
 
-    @PreAuthorize("hasRole('EMPLOYEE')")
+    @PreAuthorize("isAuthenticated()")
     @PostMapping(value = "/check-out", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> checkOut(
             Authentication authentication,
@@ -648,7 +648,7 @@ public class AttendanceController {
         return ResponseEntity.ok(toResponse(record));
     }
 
-    @PreAuthorize("hasRole('EMPLOYEE')")
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/my")
     public List<AttendanceResponse> my(Authentication authentication) {
         Company company = currentCompanyService.requireCompany(authentication);
