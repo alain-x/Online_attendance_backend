@@ -44,7 +44,7 @@ public class FaceController {
     @PostMapping(value = "/enroll", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> enroll(
             Authentication authentication,
-            @RequestPart("image") @NotNull MultipartFile image,
+            @RequestPart(value = "image", required = false) MultipartFile image,
             @RequestPart(value = "descriptor", required = false) String descriptorJson,
             @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -53,13 +53,11 @@ public class FaceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Employee profile not found"));
         }
 
-        if (image.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Image is required"));
-        }
-
-        String qualityError = openCvImageQualityService.validate(image);
-        if (qualityError != null) {
-            return ResponseEntity.badRequest().body(Map.of("message", qualityError));
+        if (image != null && !image.isEmpty()) {
+            String qualityError = openCvImageQualityService.validate(image);
+            if (qualityError != null) {
+                return ResponseEntity.badRequest().body(Map.of("message", qualityError));
+            }
         }
 
         if (descriptorJson == null || descriptorJson.isBlank()) {

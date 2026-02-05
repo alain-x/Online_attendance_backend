@@ -3,12 +3,14 @@ package com.online.attendance.attendance;
 import com.online.attendance.attendance.dto.AttendanceResponse;
 import com.online.attendance.attendance.dto.CheckInRequest;
 import com.online.attendance.attendance.dto.CheckOutRequest;
-import com.online.attendance.attendance.dto.VerifyFaceResponse;
 import com.online.attendance.attendance.dto.BulkTimesheetImportRequest;
 import com.online.attendance.attendance.dto.BulkTimesheetImportResponse;
+import com.online.attendance.audit.AuditService;
 import com.online.attendance.company.Company;
 import com.online.attendance.employee.Employee;
 import com.online.attendance.employee.EmployeeRepository;
+import com.online.attendance.face.FaceService;
+import com.online.attendance.face.OpenCvImageQualityService;
 import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.location.LocationVerificationService;
 import com.online.attendance.user.AppUser;
@@ -182,7 +184,7 @@ public class AttendanceController {
     @PostMapping(value = "/check-in", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> checkIn(
             Authentication authentication,
-            @RequestPart("image") @NotNull MultipartFile image,
+            @RequestPart(value = "image", required = false) MultipartFile image,
             @RequestPart(value = "descriptor", required = false) String descriptorJson,
             @RequestParam("latitude") double latitude,
             @RequestParam("longitude") double longitude
@@ -196,21 +198,26 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Employee profile not found"));
         }
 
-        if (image.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Image is required for check-in. Please take or upload a photo."));
-        }
-
-        String checkInQualityError = openCvImageQualityService.validate(image);
-        if (checkInQualityError != null) {
-            return ResponseEntity.badRequest().body(Map.of("message", checkInQualityError));
-        }
-
-        boolean faceVerified = false;
-        if (faceService.hasEnrollment(employee) && descriptorJson != null && !descriptorJson.isBlank()) {
-            faceVerified = faceService.verify(employee, image, descriptorJson);
-            if (!faceVerified) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
+        if (image != null && !image.isEmpty()) {
+            String checkInQualityError = openCvImageQualityService.validate(image);
+            if (checkInQualityError != null) {
+                return ResponseEntity.badRequest().body(Map.of("message", checkInQualityError));
             }
+        }
+
+        if (!faceService.hasEnrollment(employee)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll your face before checking in."));
+        }
+        if (descriptorJson == null || descriptorJson.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message",
+                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
+            ));
+        }
+
+        boolean faceVerified = faceService.verify(employee, image, descriptorJson);
+        if (!faceVerified) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
         }
 
         boolean alreadyCheckedIn = attendanceRepository
@@ -252,7 +259,7 @@ public class AttendanceController {
     @PostMapping(value = "/check-out/company-purpose", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> checkOutCompanyPurpose(
             Authentication authentication,
-            @RequestPart("image") @NotNull MultipartFile image,
+            @RequestPart(value = "image", required = false) MultipartFile image,
             @RequestPart(value = "descriptor", required = false) String descriptorJson,
             @RequestParam("latitude") double latitude,
             @RequestParam("longitude") double longitude,
@@ -273,22 +280,27 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "No active check-in found"));
         }
 
-        if (image.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Image is required for check-out. Please take or upload a photo."));
-        }
-
-        String checkOutQualityError = openCvImageQualityService.validate(image);
-        if (checkOutQualityError != null) {
-            return ResponseEntity.badRequest().body(Map.of("message", checkOutQualityError));
+        if (image != null && !image.isEmpty()) {
+            String checkOutQualityError = openCvImageQualityService.validate(image);
+            if (checkOutQualityError != null) {
+                return ResponseEntity.badRequest().body(Map.of("message", checkOutQualityError));
+            }
         }
 
         Employee employee = record.getEmployee();
-        boolean faceVerified = false;
-        if (faceService.hasEnrollment(employee) && descriptorJson != null && !descriptorJson.isBlank()) {
-            faceVerified = faceService.verify(employee, image, descriptorJson);
-            if (!faceVerified) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
-            }
+        if (!faceService.hasEnrollment(employee)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll your face before checking out."));
+        }
+        if (descriptorJson == null || descriptorJson.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message",
+                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
+            ));
+        }
+
+        boolean faceVerified = faceService.verify(employee, image, descriptorJson);
+        if (!faceVerified) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
         }
 
         record.setCheckOutTime(Instant.now());
@@ -411,7 +423,7 @@ public class AttendanceController {
     @PostMapping(value = "/check-out", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> checkOut(
             Authentication authentication,
-            @RequestPart("image") @NotNull MultipartFile image,
+            @RequestPart(value = "image", required = false) MultipartFile image,
             @RequestPart(value = "descriptor", required = false) String descriptorJson,
             @RequestParam("latitude") double latitude,
             @RequestParam("longitude") double longitude
@@ -427,22 +439,27 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "No active check-in found"));
         }
 
-        if (image.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Image is required for check-out. Please take or upload a photo."));
-        }
-
-        String checkOutQualityError = openCvImageQualityService.validate(image);
-        if (checkOutQualityError != null) {
-            return ResponseEntity.badRequest().body(Map.of("message", checkOutQualityError));
+        if (image != null && !image.isEmpty()) {
+            String checkOutQualityError = openCvImageQualityService.validate(image);
+            if (checkOutQualityError != null) {
+                return ResponseEntity.badRequest().body(Map.of("message", checkOutQualityError));
+            }
         }
 
         Employee employee = record.getEmployee();
-        boolean faceVerified = false;
-        if (faceService.hasEnrollment(employee) && descriptorJson != null && !descriptorJson.isBlank()) {
-            faceVerified = faceService.verify(employee, image, descriptorJson);
-            if (!faceVerified) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
-            }
+        if (!faceService.hasEnrollment(employee)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll your face before checking out."));
+        }
+        if (descriptorJson == null || descriptorJson.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message",
+                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
+            ));
+        }
+
+        boolean faceVerified = faceService.verify(employee, image, descriptorJson);
+        if (!faceVerified) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records. Please try again with your enrolled photo."));
         }
 
         record.setCheckOutTime(Instant.now());
@@ -614,11 +631,14 @@ public class AttendanceController {
             }
         }
 
-        auditService.log(company.getId(), currentCompanyService.requireUsername(authentication), "TIMESHEET_IMPORT", "AttendanceRecord", null, Map.of(
-                "ok", ok,
-                "failed", failed,
-                "total", rows.size()
-        ));
+        auditService.log(
+                company.getId(),
+                currentCompanyService.requireUsername(authentication),
+                "TIMESHEET_IMPORT",
+                "AttendanceRecord",
+                null,
+                "{\"ok\":" + ok + ",\"failed\":" + failed + ",\"total\":" + rows.size() + "}"
+        );
 
         return ResponseEntity.ok(new BulkTimesheetImportResponse(ok, failed, results));
     }
