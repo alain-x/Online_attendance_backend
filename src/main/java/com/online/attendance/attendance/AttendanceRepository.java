@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public interface AttendanceRepository extends JpaRepository<AttendanceRecord, Long> {
     Optional<AttendanceRecord> findTopByEmployeeUserUsernameAndEmployeeUserCompanyIdAndCheckOutTimeIsNullOrderByCheckInTimeDesc(String username, Long companyId);
+    Optional<AttendanceRecord> findTopByEmployeeIdAndEmployeeUserCompanyIdAndCheckOutTimeIsNullOrderByCheckInTimeDesc(Long employeeId, Long companyId);
     List<AttendanceRecord> findByEmployeeUserUsernameAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(String username, Long companyId);
     List<AttendanceRecord> findByCheckInTimeBetweenAndEmployeeUserCompanyIdOrderByCheckInTimeDesc(Instant from, Instant to, Long companyId);
 

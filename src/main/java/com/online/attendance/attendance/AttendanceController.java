@@ -255,6 +255,85 @@ public class AttendanceController {
         return ResponseEntity.ok(toResponse(record));
     }
 
+    @PreAuthorize("hasRole('RECORDER')")
+    @PostMapping(value = "/recorder/check-in", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> recorderCheckIn(
+            Authentication authentication,
+            @RequestParam("employeeId") Long employeeId,
+            @RequestPart(value = "image", required = false) MultipartFile image,
+            @RequestPart(value = "descriptor", required = false) String descriptorJson,
+            @RequestParam("latitude") double latitude,
+            @RequestParam("longitude") double longitude
+    ) {
+        Company company = currentCompanyService.requireCompany(authentication);
+        String recorderUsername = currentCompanyService.requireUsername(authentication);
+
+        if (employeeId == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "employeeId is required"));
+        }
+
+        Employee employee = employeeRepository.findByIdAndUserCompanyId(employeeId, company.getId()).orElse(null);
+        if (employee == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Employee not found"));
+        }
+
+        if (image != null && !image.isEmpty()) {
+            String checkInQualityError = openCvImageQualityService.validate(image);
+            if (checkInQualityError != null) {
+                return ResponseEntity.badRequest().body(Map.of("message", checkInQualityError));
+            }
+        }
+
+        if (!faceService.hasEnrollment(employee)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll face before checking in."));
+        }
+        if (descriptorJson == null || descriptorJson.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message",
+                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
+            ));
+        }
+
+        boolean faceVerified = faceService.verify(employee, image, descriptorJson);
+        if (!faceVerified) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records."));
+        }
+
+        boolean alreadyCheckedIn = attendanceRepository
+                .findTopByEmployeeIdAndEmployeeUserCompanyIdAndCheckOutTimeIsNullOrderByCheckInTimeDesc(employeeId, company.getId())
+                .isPresent();
+        if (alreadyCheckedIn) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Employee already checked in"));
+        }
+
+        boolean locationVerified = locationVerificationService.isWithinAnyActiveLocation(
+                company.getId(),
+                latitude,
+                longitude
+        );
+
+        AttendanceRecord record = AttendanceRecord.builder()
+                .employee(employee)
+                .checkInTime(Instant.now())
+                .checkInLat(latitude)
+                .checkInLng(longitude)
+                .locationVerified(locationVerified)
+                .faceVerified(faceVerified)
+                .status(AttendanceStatus.PRESENT)
+                .build();
+
+        record = attendanceRepository.save(record);
+        auditService.log(
+                company.getId(),
+                recorderUsername,
+                "RECORDER_CHECK_IN",
+                "AttendanceRecord",
+                record.getId(),
+                "{\"employeeId\":" + employeeId + ",\"lat\":" + latitude + ",\"lng\":" + longitude + ",\"locationVerified\":" + locationVerified + ",\"faceVerified\":" + faceVerified + "}"
+        );
+        return ResponseEntity.ok(toResponse(record));
+    }
+
     @PreAuthorize("hasRole('EMPLOYEE')")
     @PostMapping(value = "/check-out/company-purpose", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> checkOutCompanyPurpose(
@@ -488,6 +567,83 @@ public class AttendanceController {
                 "AttendanceRecord",
                 record.getId(),
                 "{\"lat\":" + latitude + ",\"lng\":" + longitude + ",\"locationVerified\":" + locationVerified + ",\"faceVerified\":" + faceVerified + "}"
+        );
+        return ResponseEntity.ok(toResponse(record));
+    }
+
+    @PreAuthorize("hasRole('RECORDER')")
+    @PostMapping(value = "/recorder/check-out", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> recorderCheckOut(
+            Authentication authentication,
+            @RequestParam("employeeId") Long employeeId,
+            @RequestPart(value = "image", required = false) MultipartFile image,
+            @RequestPart(value = "descriptor", required = false) String descriptorJson,
+            @RequestParam("latitude") double latitude,
+            @RequestParam("longitude") double longitude
+    ) {
+        Company company = currentCompanyService.requireCompany(authentication);
+        String recorderUsername = currentCompanyService.requireUsername(authentication);
+
+        if (employeeId == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "employeeId is required"));
+        }
+
+        AttendanceRecord record = attendanceRepository
+                .findTopByEmployeeIdAndEmployeeUserCompanyIdAndCheckOutTimeIsNullOrderByCheckInTimeDesc(employeeId, company.getId())
+                .orElse(null);
+        if (record == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No active check-in found"));
+        }
+
+        if (image != null && !image.isEmpty()) {
+            String checkOutQualityError = openCvImageQualityService.validate(image);
+            if (checkOutQualityError != null) {
+                return ResponseEntity.badRequest().body(Map.of("message", checkOutQualityError));
+            }
+        }
+
+        Employee employee = record.getEmployee();
+        if (!faceService.hasEnrollment(employee)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll face before checking out."));
+        }
+        if (descriptorJson == null || descriptorJson.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message",
+                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
+            ));
+        }
+
+        boolean faceVerified = faceService.verify(employee, image, descriptorJson);
+        if (!faceVerified) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Face verification failed. The image does not match our records."));
+        }
+
+        record.setCheckOutTime(Instant.now());
+        record.setCheckOutLat(latitude);
+        record.setCheckOutLng(longitude);
+        record.setFaceVerified(faceVerified);
+        record.setClockOutType(ClockOutType.NORMAL);
+        record.setCompanyPurposeStatus(CompanyPurposeStatus.NONE);
+        record.setCompanyPurposeNote(null);
+        record.setCompanyPurposeApprovedAt(null);
+        record.setCompanyPurposeApprovedBy(null);
+        record.setCompanyPurposeDecisionNote(null);
+
+        boolean locationVerified = locationVerificationService.isWithinAnyActiveLocation(
+                company.getId(),
+                latitude,
+                longitude
+        );
+        record.setLocationVerified(record.isLocationVerified() && locationVerified);
+
+        record = attendanceRepository.save(record);
+        auditService.log(
+                company.getId(),
+                recorderUsername,
+                "RECORDER_CHECK_OUT",
+                "AttendanceRecord",
+                record.getId(),
+                "{\"employeeId\":" + employeeId + ",\"lat\":" + latitude + ",\"lng\":" + longitude + ",\"locationVerified\":" + locationVerified + ",\"faceVerified\":" + faceVerified + "}"
         );
         return ResponseEntity.ok(toResponse(record));
     }

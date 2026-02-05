@@ -73,7 +73,7 @@ public class CurrentCompanyService {
         }
 
         // Employees must never be able to switch context
-        if (user.getRole() == Role.EMPLOYEE) {
+        if (user.getRole() == Role.EMPLOYEE || user.getRole() == Role.RECORDER) {
             return user.getCompany();
         }
 
