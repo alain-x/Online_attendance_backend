@@ -32,7 +32,12 @@ public class FaceService {
     }
 
     public boolean hasEnrollment(Employee employee) {
-        return employee.getFaceDescriptor() != null && !employee.getFaceDescriptor().isBlank();
+        if (employee == null) {
+            return false;
+        }
+        boolean hasDescriptor = employee.getFaceDescriptor() != null && !employee.getFaceDescriptor().isBlank();
+        boolean hasHash = employee.getFaceTemplateRef() != null && !employee.getFaceTemplateRef().isBlank();
+        return hasDescriptor || hasHash;
     }
 
     public boolean verify(Employee employee, MultipartFile image) {
@@ -45,12 +50,25 @@ public class FaceService {
      * Otherwise fall back to image hash match.
      */
     public boolean verify(Employee employee, MultipartFile image, String candidateDescriptorJson) {
+        if (employee == null) {
+            return false;
+        }
         if (!hasEnrollment(employee)) {
             return false;
         }
+
         if (candidateDescriptorJson == null || candidateDescriptorJson.isBlank()) {
-            return false;
+            if (image == null || image.isEmpty()) {
+                return false;
+            }
+            String storedHash = employee.getFaceTemplateRef();
+            if (storedHash == null || storedHash.isBlank()) {
+                return false;
+            }
+            String candidateHash = hash(image);
+            return storedHash.equals(candidateHash);
         }
+
         try {
             List<Double> stored = objectMapper.readValue(employee.getFaceDescriptor(), new TypeReference<>() {});
             List<Double> candidate = objectMapper.readValue(candidateDescriptorJson, new TypeReference<>() {});

@@ -77,13 +77,6 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Image is required"));
         }
 
-        if (descriptorJson == null || descriptorJson.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "message",
-                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
-            ));
-        }
-
         String qualityError = openCvImageQualityService.validate(image);
         if (qualityError != null) {
             return ResponseEntity.badRequest().body(Map.of("message", qualityError));
@@ -96,6 +89,14 @@ public class AttendanceController {
                 .orElse(null);
         if (employee == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Employee profile not found"));
+        }
+
+        if (descriptorJson == null || descriptorJson.isBlank()) {
+            boolean ok = faceService.verify(employee, image, null);
+            return ResponseEntity.ok(Map.of(
+                    "faceVerified", ok,
+                    "message", ok ? "Face verified" : "Face not verified"
+            ));
         }
 
         AttendanceRecord attendance = attendanceRepository
@@ -209,10 +210,9 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll your face before checking in."));
         }
         if (descriptorJson == null || descriptorJson.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "message",
-                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
-            ));
+            if (image == null || image.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Image or face descriptor is required"));
+            }
         }
 
         boolean faceVerified = faceService.verify(employee, image, descriptorJson);
@@ -288,10 +288,9 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll face before checking in."));
         }
         if (descriptorJson == null || descriptorJson.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "message",
-                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
-            ));
+            if (image == null || image.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Image or face descriptor is required"));
+            }
         }
 
         boolean faceVerified = faceService.verify(employee, image, descriptorJson);
@@ -371,10 +370,9 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll your face before checking out."));
         }
         if (descriptorJson == null || descriptorJson.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "message",
-                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
-            ));
+            if (image == null || image.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Image or face descriptor is required"));
+            }
         }
 
         boolean faceVerified = faceService.verify(employee, image, descriptorJson);
@@ -530,10 +528,9 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll your face before checking out."));
         }
         if (descriptorJson == null || descriptorJson.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "message",
-                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
-            ));
+            if (image == null || image.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Image or face descriptor is required"));
+            }
         }
 
         boolean faceVerified = faceService.verify(employee, image, descriptorJson);
@@ -607,10 +604,9 @@ public class AttendanceController {
             return ResponseEntity.badRequest().body(Map.of("message", "Face not enrolled. Please enroll face before checking out."));
         }
         if (descriptorJson == null || descriptorJson.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "message",
-                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try again."
-            ));
+            if (image == null || image.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Image or face descriptor is required"));
+            }
         }
 
         boolean faceVerified = faceService.verify(employee, image, descriptorJson);

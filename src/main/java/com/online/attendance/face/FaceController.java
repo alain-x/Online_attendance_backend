@@ -61,13 +61,19 @@ public class FaceController {
         }
 
         if (descriptorJson == null || descriptorJson.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "message",
-                    "Face descriptor missing. Please ensure the AI models are installed (public/models) and try enrolling again with a clear face photo."
-            ));
+            if (image == null || image.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "message",
+                        "Face descriptor missing. Please ensure the AI models are installed (public/models) and try enrolling again with a clear face photo."
+                ));
+            }
+            employee.setFaceTemplateRef(faceService.hash(image));
+        } else {
+            employee.setFaceDescriptor(descriptorJson);
+            if (image != null && !image.isEmpty()) {
+                employee.setFaceTemplateRef(faceService.hash(image));
+            }
         }
-
-        employee.setFaceDescriptor(descriptorJson);
         employeeRepository.save(employee);
 
         auditService.log(
