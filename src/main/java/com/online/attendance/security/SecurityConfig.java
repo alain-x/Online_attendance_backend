@@ -21,6 +21,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 
 import java.util.List;
 
@@ -44,6 +46,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // For stateless APIs we want a clear 401 for unauthenticated requests
+                // (Spring can otherwise default to 403 depending on enabled auth mechanisms)
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authenticationProvider(authenticationProvider())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -51,6 +56,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/system/logo").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/system/branding").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login/").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/companies/register").permitAll()
                         .anyRequest().authenticated()
                 )
