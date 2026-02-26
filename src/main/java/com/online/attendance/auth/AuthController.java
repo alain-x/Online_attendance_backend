@@ -79,7 +79,11 @@ public class AuthController {
         }
 
         if (user.getCompany() != null && !user.getCompany().isActive()) {
-            return ResponseEntity.status(403).body(Map.of("message", "Company account is inactive. Please contact system administrator."));
+            if (user.getRole() != null && user.getRole().name().equals("SYSTEM_ADMIN")) {
+                // Allow SYSTEM_ADMIN to log in to recover/reactivate company accounts.
+            } else {
+                return ResponseEntity.status(403).body(Map.of("message", "Company account is inactive. Please contact system administrator."));
+            }
         }
 
         String principal = (user.getCompany() != null ? user.getCompany().getSlug() : "default") + "::" + user.getUsername();
