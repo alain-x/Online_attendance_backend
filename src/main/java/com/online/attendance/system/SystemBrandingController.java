@@ -47,7 +47,7 @@ public class SystemBrandingController {
         return ResponseEntity.ok(new SystemBrandingResponse(toAbsoluteUrl(request, url), branding.getSystemName()));
     }
 
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PutMapping("/branding")
     public ResponseEntity<?> updateBranding(@Valid @RequestBody UpdateSystemBrandingRequest body) {
         SystemBranding branding = getOrCreate();
@@ -105,7 +105,7 @@ public class SystemBrandingController {
         return ResponseEntity.ok(Map.of("logoUrl", null));
     }
 
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PostMapping(value = "/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadLogo(HttpServletRequest request, @RequestPart("file") @NotNull MultipartFile file) throws IOException {
         if (file.isEmpty()) {

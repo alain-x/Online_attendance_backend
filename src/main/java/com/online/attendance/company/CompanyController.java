@@ -129,7 +129,7 @@ public class CompanyController {
         return ResponseEntity.ok(Map.of("deleted", true));
     }
 
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PutMapping("/{id}/active")
     public ResponseEntity<?> setActive(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         Company company = companyRepository.findById(id).orElse(null);
