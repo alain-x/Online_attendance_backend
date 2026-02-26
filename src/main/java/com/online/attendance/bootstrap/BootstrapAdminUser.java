@@ -49,26 +49,35 @@ public class BootstrapAdminUser implements CommandLineRunner {
                         .slug("default")
                         .build()));
 
-        if (!userRepository.existsByUsernameAndCompanyId(adminUsername, company.getId())) {
-            AppUser admin = AppUser.builder()
+        // Ensure bootstrap users always match configured credentials (useful in deployments)
+        AppUser admin = userRepository.findByUsernameAndCompanySlug(adminUsername, company.getSlug()).orElse(null);
+        if (admin == null) {
+            admin = AppUser.builder()
                     .username(adminUsername)
-                    .passwordHash(passwordEncoder.encode(adminPassword))
                     .role(Role.ADMIN)
                     .company(company)
                     .enabled(true)
                     .build();
-            userRepository.save(admin);
         }
+        admin.setEnabled(true);
+        admin.setRole(Role.ADMIN);
+        admin.setCompany(company);
+        admin.setPasswordHash(passwordEncoder.encode(adminPassword));
+        userRepository.save(admin);
 
-        if (!userRepository.existsByUsernameAndCompanyId(systemAdminUsername, company.getId())) {
-            AppUser sys = AppUser.builder()
+        AppUser sys = userRepository.findByUsernameAndCompanySlug(systemAdminUsername, company.getSlug()).orElse(null);
+        if (sys == null) {
+            sys = AppUser.builder()
                     .username(systemAdminUsername)
-                    .passwordHash(passwordEncoder.encode(systemAdminPassword))
                     .role(Role.SYSTEM_ADMIN)
                     .company(company)
                     .enabled(true)
                     .build();
-            userRepository.save(sys);
         }
+        sys.setEnabled(true);
+        sys.setRole(Role.SYSTEM_ADMIN);
+        sys.setCompany(company);
+        sys.setPasswordHash(passwordEncoder.encode(systemAdminPassword));
+        userRepository.save(sys);
     }
 }
