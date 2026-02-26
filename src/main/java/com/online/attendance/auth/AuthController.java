@@ -15,6 +15,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -122,12 +123,13 @@ public class AuthController {
             return ResponseEntity.status(404).build();
         }
 
-        return ResponseEntity.ok(Map.of(
-                "username", user.getUsername(),
-                "role", user.getRole().name(),
-                "companyId", user.getCompany() != null ? user.getCompany().getId() : null,
-                "companySlug", user.getCompany() != null ? user.getCompany().getSlug() : null,
-                "companyLogoUrl", user.getCompany() != null ? user.getCompany().getLogoUrl() : null
-        ));
+        Map<String, Object> body = new HashMap<>();
+        body.put("username", user.getUsername());
+        body.put("role", user.getRole().name());
+        body.put("companyId", user.getCompany() != null ? user.getCompany().getId() : null);
+        body.put("companySlug", user.getCompany() != null ? user.getCompany().getSlug() : null);
+        body.put("companyLogoUrl", user.getCompany() != null ? user.getCompany().getLogoUrl() : null);
+
+        return ResponseEntity.ok(body);
     }
 }
