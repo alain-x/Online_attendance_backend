@@ -104,9 +104,15 @@ public class AuthController {
         if (authentication == null) {
             return ResponseEntity.status(401).build();
         }
+        String username;
+        String companySlug;
+        try {
+            username = currentCompanyService.requireUsername(authentication);
+            companySlug = currentCompanyService.requireCompanySlug(authentication);
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(401).build();
+        }
 
-        String username = currentCompanyService.requireUsername(authentication);
-        String companySlug = currentCompanyService.requireCompanySlug(authentication);
         AppUser user = userRepository.findByUsernameAndCompanySlug(username, companySlug).orElse(null);
         if (user == null) {
             return ResponseEntity.status(404).build();
