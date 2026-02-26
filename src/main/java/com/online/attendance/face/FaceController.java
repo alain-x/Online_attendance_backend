@@ -87,4 +87,53 @@ public class FaceController {
 
         return ResponseEntity.ok(Map.of("message", "Face enrolled"));
     }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','RECORDER')")
+    @PostMapping(value = "/enroll/{employeeId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> enrollForEmployee(
+            Authentication authentication,
+            @PathVariable("employeeId") Long employeeId,
+            @RequestPart(value = "image", required = false) MultipartFile image,
+            @RequestPart(value = "descriptor", required = false) String descriptorJson,
+            @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        Employee employee = employeeRepository.findByIdAndUserCompanyId(employeeId, company.getId()).orElse(null);
+        if (employee == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Employee not found"));
+        }
+
+        if (image != null && !image.isEmpty()) {
+            String qualityError = openCvImageQualityService.validate(image);
+            if (qualityError != null) {
+                return ResponseEntity.badRequest().body(Map.of("message", qualityError));
+            }
+        }
+
+        if (descriptorJson == null || descriptorJson.isBlank()) {
+            if (image == null || image.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "message",
+                        "Face descriptor missing. Please ensure the AI models are installed (public/models) and try enrolling again with a clear face photo."
+                ));
+            }
+            employee.setFaceTemplateRef(faceService.hash(image));
+        } else {
+            employee.setFaceDescriptor(descriptorJson);
+            if (image != null && !image.isEmpty()) {
+                employee.setFaceTemplateRef(faceService.hash(image));
+            }
+        }
+        employeeRepository.save(employee);
+
+        auditService.log(
+                company.getId(),
+                currentCompanyService.requireUsername(authentication),
+                "FACE_ENROLL",
+                "Employee",
+                employee.getId(),
+                null
+        );
+
+        return ResponseEntity.ok(Map.of("message", "Face enrolled"));
+    }
 }
