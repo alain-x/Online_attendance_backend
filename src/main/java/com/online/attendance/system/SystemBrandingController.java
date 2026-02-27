@@ -67,6 +67,16 @@ public class SystemBrandingController {
         return ResponseEntity.ok(Map.of("updated", true));
     }
 
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @DeleteMapping("/branding")
+    public ResponseEntity<?> deleteBranding() {
+        SystemBranding branding = getOrCreate();
+        branding.setSystemName(null);
+        branding.setUpdatedAt(Instant.now());
+        brandingRepository.save(branding);
+        return ResponseEntity.ok(Map.of("deleted", true));
+    }
+
     private String toAbsoluteUrl(HttpServletRequest request, String url) {
         if (url == null || url.isBlank()) {
             return url;
@@ -187,5 +197,28 @@ public class SystemBrandingController {
         brandingRepository.save(branding);
 
         return ResponseEntity.ok(Map.of("logoUrl", toAbsoluteUrl(request, "/api/system/logo/image")));
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @DeleteMapping("/logo")
+    public ResponseEntity<?> deleteLogo() {
+        SystemBranding existing = brandingRepository.findById(BRANDING_ID).orElse(null);
+        if (existing != null && existing.getLogoPath() != null && !existing.getLogoPath().isBlank()) {
+            try {
+                Files.deleteIfExists(Paths.get(existing.getLogoPath()));
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (existing != null) {
+            existing.setLogoUrl(null);
+            existing.setLogoPath(null);
+            existing.setLogoBytes(null);
+            existing.setLogoContentType(null);
+            existing.setUpdatedAt(Instant.now());
+            brandingRepository.save(existing);
+        }
+
+        return ResponseEntity.ok(Map.of("deleted", true));
     }
 }
