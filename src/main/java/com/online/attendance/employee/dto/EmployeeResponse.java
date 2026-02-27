@@ -17,6 +17,7 @@ public class EmployeeResponse {
     private String designation;
     private String category;
     private String username;
+    private String email;
     private String role;
 
     private BigDecimal hourlyRateOverride;

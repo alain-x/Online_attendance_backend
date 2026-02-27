@@ -45,8 +45,14 @@ public class UserController {
     @PostMapping
     public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateUserRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
-        if (userRepository.existsByUsernameAndCompanyId(request.getUsername(), company.getId())) {
-            return ResponseEntity.status(409).body(Map.of("message", "Username already exists"));
+        String requestedUsername = request.getUsername() != null ? request.getUsername().trim() : "";
+        if (userRepository.existsByUsernameAndCompanyId(requestedUsername, company.getId())) {
+            return ResponseEntity.status(409).body(Map.of("message", requestedUsername + " is taken, try another one"));
+        }
+
+        String requestedEmail = request.getEmail() != null ? request.getEmail().trim() : "";
+        if (!requestedEmail.isBlank() && userRepository.existsByEmailAndCompanyId(requestedEmail, company.getId())) {
+            return ResponseEntity.status(409).body(Map.of("message", "Email already exists"));
         }
 
         Role role;
@@ -59,7 +65,8 @@ public class UserController {
         boolean enabled = request.getEnabled() == null || request.getEnabled();
 
         AppUser user = AppUser.builder()
-                .username(request.getUsername())
+                .username(requestedUsername)
+                .email(requestedEmail)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(role)
                 .company(company)
@@ -70,7 +77,7 @@ public class UserController {
             user = userRepository.save(user);
             return ResponseEntity.ok(toResponse(user));
         } catch (DataIntegrityViolationException ex) {
-            return ResponseEntity.status(409).body(Map.of("message", "Username already exists"));
+            return ResponseEntity.status(409).body(Map.of("message", requestedUsername + " is taken, try another one"));
         }
     }
 
@@ -102,6 +109,17 @@ public class UserController {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
 
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String requestedEmail = request.getEmail().trim();
+            String currentEmail = user.getEmail() != null ? user.getEmail().trim() : "";
+            if (!requestedEmail.equalsIgnoreCase(currentEmail)) {
+                if (userRepository.existsByEmailAndCompanyId(requestedEmail, company.getId())) {
+                    return ResponseEntity.status(409).body(Map.of("message", "Email already exists"));
+                }
+                user.setEmail(requestedEmail);
+            }
+        }
+
         user = userRepository.save(user);
         return ResponseEntity.ok(toResponse(user));
     }
@@ -130,6 +148,7 @@ public class UserController {
         return UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
+                .email(user.getEmail())
                 .role(user.getRole() != null ? user.getRole().name() : null)
                 .enabled(user.isEnabled())
                 .companyId(user.getCompany() != null ? user.getCompany().getId() : null)

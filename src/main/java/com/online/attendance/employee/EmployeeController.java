@@ -39,8 +39,14 @@ public class EmployeeController {
     @PostMapping
     public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateEmployeeRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
-        if (userRepository.existsByUsernameAndCompanyId(request.getUsername(), company.getId())) {
-            return ResponseEntity.status(409).body(Map.of("message", "Username already exists"));
+        String requestedUsername = request.getUsername() != null ? request.getUsername().trim() : "";
+        if (userRepository.existsByUsernameAndCompanyId(requestedUsername, company.getId())) {
+            return ResponseEntity.status(409).body(Map.of("message", requestedUsername + " is taken, try another one"));
+        }
+
+        String requestedEmail = request.getEmail() != null ? request.getEmail().trim() : "";
+        if (!requestedEmail.isBlank() && userRepository.existsByEmailAndCompanyId(requestedEmail, company.getId())) {
+            return ResponseEntity.status(409).body(Map.of("message", "Email already exists"));
         }
 
         Role role;
@@ -51,7 +57,8 @@ public class EmployeeController {
         }
 
         AppUser user = AppUser.builder()
-                .username(request.getUsername())
+                .username(requestedUsername)
+                .email(requestedEmail)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(role)
                 .company(company)
@@ -121,9 +128,20 @@ public class EmployeeController {
             String currentUsername = user.getUsername();
             if (!requestedUsername.equalsIgnoreCase(currentUsername)) {
                 if (userRepository.existsByUsernameAndCompanyId(requestedUsername, company.getId())) {
-                    return ResponseEntity.status(409).body(Map.of("message", "Username already exists"));
+                    return ResponseEntity.status(409).body(Map.of("message", requestedUsername + " is taken, try another one"));
                 }
                 user.setUsername(requestedUsername);
+            }
+        }
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String requestedEmail = request.getEmail().trim();
+            String currentEmail = user.getEmail() != null ? user.getEmail().trim() : "";
+            if (!requestedEmail.equalsIgnoreCase(currentEmail)) {
+                if (userRepository.existsByEmailAndCompanyId(requestedEmail, company.getId())) {
+                    return ResponseEntity.status(409).body(Map.of("message", "Email already exists"));
+                }
+                user.setEmail(requestedEmail);
             }
         }
 
@@ -176,6 +194,7 @@ public class EmployeeController {
                 employee.getDesignation(),
                 employee.getCategory(),
                 employee.getUser().getUsername(),
+                employee.getUser().getEmail(),
                 employee.getUser().getRole().name(),
                 employee.getHourlyRateOverride()
         );

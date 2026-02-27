@@ -7,7 +7,8 @@ import lombok.*;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_users_company_username", columnNames = {"company_id", "username"})
+        @UniqueConstraint(name = "uk_users_company_username", columnNames = {"company_id", "username"}),
+        @UniqueConstraint(name = "uk_users_company_email", columnNames = {"company_id", "email"})
 })
 @Getter
 @Setter
@@ -22,6 +23,9 @@ public class AppUser {
 
     @Column(nullable = false, length = 100)
     private String username;
+
+    @Column(length = 200)
+    private String email;
 
     @Column(nullable = false)
     @JsonIgnore
