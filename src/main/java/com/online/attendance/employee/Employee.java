@@ -49,6 +49,12 @@ public class Employee {
     @Column(name = "face_descriptor", columnDefinition = "TEXT")
     private String faceDescriptor;
 
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
+    @Column(name = "profile_image_path", length = 1000)
+    private String profileImagePath;
+
     @Column(name = "hourly_rate_override", precision = 12, scale = 2)
     private BigDecimal hourlyRateOverride;
 

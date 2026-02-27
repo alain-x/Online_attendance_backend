@@ -193,6 +193,7 @@ public class EmployeeController {
                 employee.getMobile(),
                 employee.getDesignation(),
                 employee.getCategory(),
+                employee.getProfileImageUrl(),
                 employee.getUser().getUsername(),
                 employee.getUser().getEmail(),
                 employee.getUser().getRole().name(),

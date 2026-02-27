@@ -16,6 +16,7 @@ public class EmployeeResponse {
     private String mobile;
     private String designation;
     private String category;
+    private String profileImageUrl;
     private String username;
     private String email;
     private String role;

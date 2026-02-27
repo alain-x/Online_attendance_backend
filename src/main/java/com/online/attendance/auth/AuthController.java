@@ -2,6 +2,8 @@ package com.online.attendance.auth;
 
 import com.online.attendance.auth.dto.LoginRequest;
 import com.online.attendance.auth.dto.LoginResponse;
+import com.online.attendance.employee.Employee;
+import com.online.attendance.employee.EmployeeRepository;
 import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.security.JwtService;
 import com.online.attendance.user.AppUser;
@@ -26,13 +28,15 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final EmployeeRepository employeeRepository;
     private final CurrentCompanyService currentCompanyService;
     private final PasswordEncoder passwordEncoder;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, UserRepository userRepository, CurrentCompanyService currentCompanyService, PasswordEncoder passwordEncoder) {
+    public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, UserRepository userRepository, EmployeeRepository employeeRepository, CurrentCompanyService currentCompanyService, PasswordEncoder passwordEncoder) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userRepository = userRepository;
+        this.employeeRepository = employeeRepository;
         this.currentCompanyService = currentCompanyService;
         this.passwordEncoder = passwordEncoder;
     }
@@ -130,6 +134,12 @@ public class AuthController {
         body.put("companySlug", user.getCompany() != null ? user.getCompany().getSlug() : null);
         body.put("companyName", user.getCompany() != null ? user.getCompany().getName() : null);
         body.put("companyLogoUrl", user.getCompany() != null ? user.getCompany().getLogoUrl() : null);
+
+        Long companyId = user.getCompany() != null ? user.getCompany().getId() : null;
+        Employee employee = (user.getId() != null && companyId != null)
+                ? employeeRepository.findByUserIdAndUserCompanyId(user.getId(), companyId).orElse(null)
+                : null;
+        body.put("profileImageUrl", employee != null ? employee.getProfileImageUrl() : null);
 
         return ResponseEntity.ok(body);
     }
