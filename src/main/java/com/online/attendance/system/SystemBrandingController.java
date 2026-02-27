@@ -3,6 +3,8 @@ package com.online.attendance.system;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -43,7 +45,12 @@ public class SystemBrandingController {
     @GetMapping("/branding")
     public ResponseEntity<?> getBranding(HttpServletRequest request) {
         SystemBranding branding = getOrCreate();
-        String url = branding.getLogoUrl();
+        String url;
+        if (branding.getLogoBytes() != null && branding.getLogoBytes().length > 0) {
+            url = "/api/system/logo/image";
+        } else {
+            url = branding.getLogoUrl();
+        }
         return ResponseEntity.ok(new SystemBrandingResponse(toAbsoluteUrl(request, url), branding.getSystemName()));
     }
 
@@ -80,8 +87,13 @@ public class SystemBrandingController {
     @GetMapping("/logo")
     public ResponseEntity<?> getLogo(HttpServletRequest request) throws IOException {
         SystemBranding branding = brandingRepository.findById(BRANDING_ID).orElse(null);
-        if (branding != null && branding.getLogoUrl() != null && !branding.getLogoUrl().isBlank()) {
-            return ResponseEntity.ok(Map.of("logoUrl", toAbsoluteUrl(request, branding.getLogoUrl())));
+        if (branding != null) {
+            if (branding.getLogoBytes() != null && branding.getLogoBytes().length > 0) {
+                return ResponseEntity.ok(Map.of("logoUrl", toAbsoluteUrl(request, "/api/system/logo/image")));
+            }
+            if (branding.getLogoUrl() != null && !branding.getLogoUrl().isBlank()) {
+                return ResponseEntity.ok(Map.of("logoUrl", toAbsoluteUrl(request, branding.getLogoUrl())));
+            }
         }
 
         Files.createDirectories(DIR);
@@ -103,6 +115,27 @@ public class SystemBrandingController {
         }
 
         return ResponseEntity.ok(Map.of("logoUrl", null));
+    }
+
+    @GetMapping("/logo/image")
+    public ResponseEntity<?> getLogoImage() {
+        SystemBranding branding = brandingRepository.findById(BRANDING_ID).orElse(null);
+        if (branding == null || branding.getLogoBytes() == null || branding.getLogoBytes().length == 0) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "System logo not set"));
+        }
+        String contentType = branding.getLogoContentType();
+        if (contentType == null || contentType.isBlank()) {
+            contentType = MediaType.IMAGE_PNG_VALUE;
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, max-age=0, must-revalidate");
+        headers.set(HttpHeaders.PRAGMA, "no-cache");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(branding.getLogoBytes());
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -148,9 +181,11 @@ public class SystemBrandingController {
         branding.setId(BRANDING_ID);
         branding.setLogoUrl(url);
         branding.setLogoPath(out.toString());
+        branding.setLogoBytes(file.getBytes());
+        branding.setLogoContentType(file.getContentType());
         branding.setUpdatedAt(Instant.now());
         brandingRepository.save(branding);
 
-        return ResponseEntity.ok(Map.of("logoUrl", toAbsoluteUrl(request, url)));
+        return ResponseEntity.ok(Map.of("logoUrl", toAbsoluteUrl(request, "/api/system/logo/image")));
     }
 }

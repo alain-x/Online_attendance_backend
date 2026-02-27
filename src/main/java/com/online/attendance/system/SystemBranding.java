@@ -27,6 +27,13 @@ public class SystemBranding {
     @Column(name = "logo_path", length = 1000)
     private String logoPath;
 
+    @Lob
+    @Column(name = "logo_bytes", columnDefinition = "LONGBLOB")
+    private byte[] logoBytes;
+
+    @Column(name = "logo_content_type", length = 120)
+    private String logoContentType;
+
     @Column(name = "updated_at")
     private Instant updatedAt;
 }
