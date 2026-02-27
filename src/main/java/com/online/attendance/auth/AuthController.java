@@ -128,6 +128,7 @@ public class AuthController {
         body.put("role", user.getRole().name());
         body.put("companyId", user.getCompany() != null ? user.getCompany().getId() : null);
         body.put("companySlug", user.getCompany() != null ? user.getCompany().getSlug() : null);
+        body.put("companyName", user.getCompany() != null ? user.getCompany().getName() : null);
         body.put("companyLogoUrl", user.getCompany() != null ? user.getCompany().getLogoUrl() : null);
 
         return ResponseEntity.ok(body);
