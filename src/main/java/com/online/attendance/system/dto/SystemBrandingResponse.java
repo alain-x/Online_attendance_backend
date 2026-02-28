@@ -7,5 +7,6 @@ import lombok.Getter;
 @AllArgsConstructor
 public class SystemBrandingResponse {
     private final String logoUrl;
+    private final String faviconUrl;
     private final String systemName;
 }

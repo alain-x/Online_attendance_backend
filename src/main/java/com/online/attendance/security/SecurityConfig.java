@@ -55,6 +55,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/system/logo").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/system/logo/image").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/system/favicon").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/system/favicon/image").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/system/branding").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/companies/register").permitAll()

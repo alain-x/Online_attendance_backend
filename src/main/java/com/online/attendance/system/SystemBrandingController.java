@@ -24,6 +24,7 @@ import java.util.*;
 public class SystemBrandingController {
 
     private static final Path DIR = Paths.get("uploads", "system-logo");
+    private static final Path FAVICON_DIR = Paths.get("uploads", "system-favicon");
     private static final String BRANDING_ID = "SYSTEM";
 
     private final SystemBrandingRepository brandingRepository;
@@ -51,7 +52,19 @@ public class SystemBrandingController {
         } else {
             url = branding.getLogoUrl();
         }
-        return ResponseEntity.ok(new SystemBrandingResponse(toAbsoluteUrl(request, url), branding.getSystemName()));
+
+        String faviconUrl;
+        if (branding.getFaviconBytes() != null && branding.getFaviconBytes().length > 0) {
+            faviconUrl = "/api/system/favicon/image";
+        } else {
+            faviconUrl = branding.getFaviconUrl();
+        }
+
+        return ResponseEntity.ok(new SystemBrandingResponse(
+                toAbsoluteUrl(request, url),
+                toAbsoluteUrl(request, faviconUrl),
+                branding.getSystemName()
+        ));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -146,6 +159,134 @@ public class SystemBrandingController {
                 .headers(headers)
                 .contentType(MediaType.parseMediaType(contentType))
                 .body(branding.getLogoBytes());
+    }
+
+    @GetMapping("/favicon")
+    public ResponseEntity<?> getFavicon(HttpServletRequest request) throws IOException {
+        SystemBranding branding = brandingRepository.findById(BRANDING_ID).orElse(null);
+        if (branding != null) {
+            if (branding.getFaviconBytes() != null && branding.getFaviconBytes().length > 0) {
+                return ResponseEntity.ok(Map.of("faviconUrl", toAbsoluteUrl(request, "/api/system/favicon/image")));
+            }
+            if (branding.getFaviconUrl() != null && !branding.getFaviconUrl().isBlank()) {
+                return ResponseEntity.ok(Map.of("faviconUrl", toAbsoluteUrl(request, branding.getFaviconUrl())));
+            }
+        }
+
+        Files.createDirectories(FAVICON_DIR);
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(FAVICON_DIR)) {
+            for (Path p : ds) {
+                if (Files.isRegularFile(p)) {
+                    String filename = p.getFileName().toString();
+                    String url = "/uploads/system-favicon/" + filename;
+                    SystemBranding seed = SystemBranding.builder()
+                            .id(BRANDING_ID)
+                            .faviconUrl(url)
+                            .faviconPath(p.toString())
+                            .updatedAt(Instant.now())
+                            .build();
+                    brandingRepository.save(seed);
+                    return ResponseEntity.ok(Map.of("faviconUrl", toAbsoluteUrl(request, url)));
+                }
+            }
+        }
+
+        return ResponseEntity.ok(Map.of("faviconUrl", null));
+    }
+
+    @GetMapping("/favicon/image")
+    public ResponseEntity<?> getFaviconImage() {
+        SystemBranding branding = brandingRepository.findById(BRANDING_ID).orElse(null);
+        if (branding == null || branding.getFaviconBytes() == null || branding.getFaviconBytes().length == 0) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "System favicon not set"));
+        }
+        String contentType = branding.getFaviconContentType();
+        if (contentType == null || contentType.isBlank()) {
+            contentType = "image/x-icon";
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, max-age=0, must-revalidate");
+        headers.set(HttpHeaders.PRAGMA, "no-cache");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(branding.getFaviconBytes());
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @PostMapping(value = "/favicon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadFavicon(HttpServletRequest request, @RequestPart("file") @NotNull MultipartFile file) throws IOException {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "File is required"));
+        }
+
+        Files.createDirectories(FAVICON_DIR);
+
+        SystemBranding existing = brandingRepository.findById(BRANDING_ID).orElse(null);
+        if (existing != null && existing.getFaviconPath() != null && !existing.getFaviconPath().isBlank()) {
+            try {
+                Files.deleteIfExists(Paths.get(existing.getFaviconPath()));
+            } catch (Exception ignored) {
+            }
+        } else {
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(FAVICON_DIR)) {
+                for (Path p : ds) {
+                    if (Files.isRegularFile(p)) {
+                        Files.deleteIfExists(p);
+                    }
+                }
+            }
+        }
+
+        String original = file.getOriginalFilename();
+        String ext = "";
+        if (original != null) {
+            int idx = original.lastIndexOf('.');
+            if (idx >= 0 && idx < original.length() - 1) {
+                ext = original.substring(idx);
+            }
+        }
+
+        String filename = "system-favicon-" + UUID.randomUUID() + ext;
+        Path out = FAVICON_DIR.resolve(filename);
+        Files.write(out, file.getBytes());
+
+        String url = "/uploads/system-favicon/" + filename;
+        SystemBranding branding = existing != null ? existing : new SystemBranding();
+        branding.setId(BRANDING_ID);
+        branding.setFaviconUrl(url);
+        branding.setFaviconPath(out.toString());
+        branding.setFaviconBytes(file.getBytes());
+        branding.setFaviconContentType(file.getContentType());
+        branding.setUpdatedAt(Instant.now());
+        brandingRepository.save(branding);
+
+        return ResponseEntity.ok(Map.of("faviconUrl", toAbsoluteUrl(request, "/api/system/favicon/image")));
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @DeleteMapping("/favicon")
+    public ResponseEntity<?> deleteFavicon() {
+        SystemBranding existing = brandingRepository.findById(BRANDING_ID).orElse(null);
+        if (existing != null && existing.getFaviconPath() != null && !existing.getFaviconPath().isBlank()) {
+            try {
+                Files.deleteIfExists(Paths.get(existing.getFaviconPath()));
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (existing != null) {
+            existing.setFaviconUrl(null);
+            existing.setFaviconPath(null);
+            existing.setFaviconBytes(null);
+            existing.setFaviconContentType(null);
+            existing.setUpdatedAt(Instant.now());
+            brandingRepository.save(existing);
+        }
+
+        return ResponseEntity.ok(Map.of("deleted", true));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
