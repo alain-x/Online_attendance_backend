@@ -7,4 +7,5 @@ import java.util.List;
 public interface FormSubmissionRepository extends JpaRepository<FormSubmission, Long> {
     List<FormSubmission> findAllByFormIdOrderBySubmittedAtDesc(Long formId);
     List<FormSubmission> findAllByCompany_IdOrderBySubmittedAtDesc(Long companyId);
+    long countByFormId(Long formId);
 }

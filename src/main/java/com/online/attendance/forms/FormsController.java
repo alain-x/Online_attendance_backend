@@ -11,6 +11,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
@@ -101,8 +102,12 @@ public class FormsController {
                 .updatedAt(now)
                 .build();
 
-        form = formRepository.save(form);
-        saveFields(form, request.getFields());
+        try {
+            form = formRepository.save(form);
+            saveFields(form, request.getFields());
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Unable to save form. Please verify fields and try again."));
+        }
 
         List<FormField> fields = formFieldRepository.findAllByFormIdOrderBySortOrderAsc(form.getId());
         return ResponseEntity.ok(toDto(form, fields));
@@ -130,11 +135,15 @@ public class FormsController {
             form.setPublicToken(generateToken());
         }
 
-        form.setUpdatedAt(Instant.now());
-        form = formRepository.save(form);
+        try {
+            form.setUpdatedAt(Instant.now());
+            form = formRepository.save(form);
 
-        formFieldRepository.deleteAllByFormId(form.getId());
-        saveFields(form, request.getFields());
+            formFieldRepository.deleteAllByFormId(form.getId());
+            saveFields(form, request.getFields());
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Unable to update form. Please verify fields and try again."));
+        }
 
         List<FormField> fields = formFieldRepository.findAllByFormIdOrderBySortOrderAsc(form.getId());
         return ResponseEntity.ok(toDto(form, fields));
@@ -163,10 +172,19 @@ public class FormsController {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
 
+        long submissionCount = submissionRepository.countByFormId(form.getId());
+        if (submissionCount > 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Cannot delete a form that already has submissions."));
+        }
+
         // Minimal delete: fields then form. (Submissions remain unless manually cleaned.)
-        formFieldRepository.deleteAllByFormId(form.getId());
-        formRepository.delete(form);
-        return ResponseEntity.noContent().build();
+        try {
+            formFieldRepository.deleteAllByFormId(form.getId());
+            formRepository.delete(form);
+            return ResponseEntity.noContent().build();
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Cannot delete this form due to related data."));
+        }
     }
 
     @PreAuthorize("isAuthenticated()")
