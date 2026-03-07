@@ -7,6 +7,8 @@ import com.online.attendance.user.UserRepository;
 import com.online.attendance.forms.dto.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -30,6 +32,8 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/forms")
 public class FormsController {
+
+    private static final Logger log = LoggerFactory.getLogger(FormsController.class);
 
     private static final Path UPLOAD_DIR = Paths.get("uploads", "forms");
 
@@ -146,7 +150,12 @@ public class FormsController {
         } catch (DataIntegrityViolationException e) {
             return ResponseEntity.badRequest().body(Map.of("message", "Unable to update form. Please verify fields and try again."));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("message", "Unable to update form due to an unexpected server error."));
+            String errorId = UUID.randomUUID().toString();
+            log.error("Forms update failed. errorId={}, formId={}, companyId={}", errorId, id, company.getId(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                    "message", "Unable to update form due to an unexpected server error.",
+                    "errorId", errorId
+            ));
         }
 
         List<FormField> fields = formFieldRepository.findAllByForm_IdOrderBySortOrderAsc(form.getId());
@@ -189,7 +198,12 @@ public class FormsController {
         } catch (DataIntegrityViolationException e) {
             return ResponseEntity.badRequest().body(Map.of("message", "Cannot delete this form due to related data."));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("message", "Unable to delete form due to an unexpected server error."));
+            String errorId = UUID.randomUUID().toString();
+            log.error("Forms delete failed. errorId={}, formId={}, companyId={}", errorId, id, company.getId(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                    "message", "Unable to delete form due to an unexpected server error.",
+                    "errorId", errorId
+            ));
         }
     }
 
