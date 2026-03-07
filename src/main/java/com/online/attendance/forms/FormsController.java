@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -67,7 +68,7 @@ public class FormsController {
         List<Form> forms = formRepository.findAllByCompany_IdOrderByUpdatedAtDesc(company.getId());
         List<FormDto> out = new ArrayList<>();
         for (Form f : forms) {
-            out.add(toDto(f, null));
+            out.add(toDto(f, null, company));
         }
         return out;
     }
@@ -81,7 +82,7 @@ public class FormsController {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
         List<FormField> fields = formFieldRepository.findAllByForm_IdOrderBySortOrderAsc(form.getId());
-        return ResponseEntity.ok(toDto(form, fields));
+        return ResponseEntity.ok(toDto(form, fields, company));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -114,11 +115,12 @@ public class FormsController {
         }
 
         List<FormField> fields = formFieldRepository.findAllByForm_IdOrderBySortOrderAsc(form.getId());
-        return ResponseEntity.ok(toDto(form, fields));
+        return ResponseEntity.ok(toDto(form, fields, company));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PutMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @Valid @RequestBody UpsertFormRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
         Form form = formRepository.findByIdAndCompany_Id(id, company.getId()).orElse(null);
@@ -143,7 +145,7 @@ public class FormsController {
             form.setUpdatedAt(Instant.now());
             form = formRepository.save(form);
 
-            formFieldRepository.deleteAllByForm_Id(form.getId());
+            formFieldRepository.deleteByFormId(form.getId());
             saveFields(form, request.getFields());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage() != null ? e.getMessage() : "Invalid form fields"));
@@ -159,7 +161,7 @@ public class FormsController {
         }
 
         List<FormField> fields = formFieldRepository.findAllByForm_IdOrderBySortOrderAsc(form.getId());
-        return ResponseEntity.ok(toDto(form, fields));
+        return ResponseEntity.ok(toDto(form, fields, company));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -178,6 +180,7 @@ public class FormsController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
         Form form = formRepository.findByIdAndCompany_Id(id, company.getId()).orElse(null);
@@ -192,7 +195,7 @@ public class FormsController {
 
         // Minimal delete: fields then form. (Submissions remain unless manually cleaned.)
         try {
-            formFieldRepository.deleteAllByForm_Id(form.getId());
+            formFieldRepository.deleteByFormId(form.getId());
             formRepository.delete(form);
             return ResponseEntity.noContent().build();
         } catch (DataIntegrityViolationException e) {
@@ -409,7 +412,7 @@ public class FormsController {
         }
     }
 
-    private FormDto toDto(Form form, List<FormField> fields) {
+    private FormDto toDto(Form form, List<FormField> fields, Company companyOverride) {
         List<FormFieldDto> outFields = null;
         if (fields != null) {
             outFields = new ArrayList<>();
@@ -429,14 +432,21 @@ public class FormsController {
             }
         }
 
+        Company company = companyOverride;
+        if (company == null) {
+            // Only fall back to the relation if we weren't provided a company.
+            // (This may be lazily loaded depending on environment.)
+            company = form.getCompany();
+        }
+
         return FormDto.builder()
                 .id(form.getId())
-                .companyId(form.getCompany() != null ? form.getCompany().getId() : null)
+                .companyId(company != null ? company.getId() : null)
                 .title(form.getTitle())
                 .description(form.getDescription())
                 .companyLogoUrl(form.getCompanyLogoUrl() != null && !form.getCompanyLogoUrl().isBlank()
                         ? form.getCompanyLogoUrl()
-                        : (form.getCompany() != null ? form.getCompany().getLogoUrl() : null))
+                        : (company != null ? company.getLogoUrl() : null))
                 .loginRequired(form.isLoginRequired())
                 .publicEnabled(form.isPublicEnabled())
                 .publicToken(form.getPublicToken())
