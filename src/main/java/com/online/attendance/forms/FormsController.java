@@ -76,7 +76,7 @@ public class FormsController {
         if (form == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
-        List<FormField> fields = formFieldRepository.findAllByFormIdOrderBySortOrderAsc(form.getId());
+        List<FormField> fields = formFieldRepository.findAllByForm_IdOrderBySortOrderAsc(form.getId());
         return ResponseEntity.ok(toDto(form, fields));
     }
 
@@ -109,7 +109,7 @@ public class FormsController {
             return ResponseEntity.badRequest().body(Map.of("message", "Unable to save form. Please verify fields and try again."));
         }
 
-        List<FormField> fields = formFieldRepository.findAllByFormIdOrderBySortOrderAsc(form.getId());
+        List<FormField> fields = formFieldRepository.findAllByForm_IdOrderBySortOrderAsc(form.getId());
         return ResponseEntity.ok(toDto(form, fields));
     }
 
@@ -139,13 +139,13 @@ public class FormsController {
             form.setUpdatedAt(Instant.now());
             form = formRepository.save(form);
 
-            formFieldRepository.deleteAllByFormId(form.getId());
+            formFieldRepository.deleteAllByForm_Id(form.getId());
             saveFields(form, request.getFields());
         } catch (DataIntegrityViolationException e) {
             return ResponseEntity.badRequest().body(Map.of("message", "Unable to update form. Please verify fields and try again."));
         }
 
-        List<FormField> fields = formFieldRepository.findAllByFormIdOrderBySortOrderAsc(form.getId());
+        List<FormField> fields = formFieldRepository.findAllByForm_IdOrderBySortOrderAsc(form.getId());
         return ResponseEntity.ok(toDto(form, fields));
     }
 
@@ -179,7 +179,7 @@ public class FormsController {
 
         // Minimal delete: fields then form. (Submissions remain unless manually cleaned.)
         try {
-            formFieldRepository.deleteAllByFormId(form.getId());
+            formFieldRepository.deleteAllByForm_Id(form.getId());
             formRepository.delete(form);
             return ResponseEntity.noContent().build();
         } catch (DataIntegrityViolationException e) {

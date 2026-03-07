@@ -40,7 +40,7 @@ public class PublicFormsController {
         if (form == null || !form.isActive() || !form.isPublicEnabled()) {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
-        List<FormField> fields = formFieldRepository.findAllByFormIdOrderBySortOrderAsc(form.getId());
+        List<FormField> fields = formFieldRepository.findAllByForm_IdOrderBySortOrderAsc(form.getId());
         return ResponseEntity.ok(toDto(form, fields));
     }
 
