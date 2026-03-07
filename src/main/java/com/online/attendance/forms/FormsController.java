@@ -172,7 +172,7 @@ public class FormsController {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
 
-        long submissionCount = submissionRepository.countByFormId(form.getId());
+        long submissionCount = submissionRepository.countByForm_Id(form.getId());
         if (submissionCount > 0) {
             return ResponseEntity.badRequest().body(Map.of("message", "Cannot delete a form that already has submissions."));
         }
@@ -235,7 +235,7 @@ public class FormsController {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
 
-        List<FormSubmission> subs = submissionRepository.findAllByFormIdOrderBySubmittedAtDesc(form.getId());
+        List<FormSubmission> subs = submissionRepository.findAllByForm_IdOrderBySubmittedAtDesc(form.getId());
         List<SubmissionDto> out = new ArrayList<>();
         for (FormSubmission s : subs) {
             out.add(SubmissionDto.builder()

@@ -61,8 +61,8 @@ public class SystemBrandingController {
         }
 
         return ResponseEntity.ok(new SystemBrandingResponse(
-                toAbsoluteUrl(request, url),
-                toAbsoluteUrl(request, faviconUrl),
+                url,
+                faviconUrl,
                 branding.getSystemName()
         ));
     }
@@ -162,10 +162,10 @@ public class SystemBrandingController {
         SystemBranding branding = brandingRepository.findById(BRANDING_ID).orElse(null);
         if (branding != null) {
             if (branding.getLogoBytes() != null && branding.getLogoBytes().length > 0) {
-                return ResponseEntity.ok(Map.of("logoUrl", toAbsoluteUrl(request, "/api/system/logo/image")));
+                return ResponseEntity.ok(Map.of("logoUrl", "/api/system/logo/image"));
             }
             if (branding.getLogoUrl() != null && !branding.getLogoUrl().isBlank()) {
-                return ResponseEntity.ok(Map.of("logoUrl", toAbsoluteUrl(request, branding.getLogoUrl())));
+                return ResponseEntity.ok(Map.of("logoUrl", branding.getLogoUrl()));
             }
         }
 
@@ -182,7 +182,7 @@ public class SystemBrandingController {
                             .updatedAt(Instant.now())
                             .build();
                     brandingRepository.save(seed);
-                    return ResponseEntity.ok(Map.of("logoUrl", toAbsoluteUrl(request, url)));
+                    return ResponseEntity.ok(Map.of("logoUrl", url));
                 }
             }
         }
@@ -216,10 +216,10 @@ public class SystemBrandingController {
         SystemBranding branding = brandingRepository.findById(BRANDING_ID).orElse(null);
         if (branding != null) {
             if (branding.getFaviconBytes() != null && branding.getFaviconBytes().length > 0) {
-                return ResponseEntity.ok(Map.of("faviconUrl", toAbsoluteUrl(request, "/api/system/favicon/image")));
+                return ResponseEntity.ok(Map.of("faviconUrl", "/api/system/favicon/image"));
             }
             if (branding.getFaviconUrl() != null && !branding.getFaviconUrl().isBlank()) {
-                return ResponseEntity.ok(Map.of("faviconUrl", toAbsoluteUrl(request, branding.getFaviconUrl())));
+                return ResponseEntity.ok(Map.of("faviconUrl", branding.getFaviconUrl()));
             }
         }
 
@@ -236,7 +236,7 @@ public class SystemBrandingController {
                             .updatedAt(Instant.now())
                             .build();
                     brandingRepository.save(seed);
-                    return ResponseEntity.ok(Map.of("faviconUrl", toAbsoluteUrl(request, url)));
+                    return ResponseEntity.ok(Map.of("faviconUrl", url));
                 }
             }
         }
@@ -313,7 +313,7 @@ public class SystemBrandingController {
         branding.setUpdatedAt(Instant.now());
         brandingRepository.save(branding);
 
-        return ResponseEntity.ok(Map.of("faviconUrl", toAbsoluteUrl(request, "/api/system/favicon/image")));
+        return ResponseEntity.ok(Map.of("faviconUrl", "/api/system/favicon/image"));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -387,7 +387,7 @@ public class SystemBrandingController {
         branding.setUpdatedAt(Instant.now());
         brandingRepository.save(branding);
 
-        return ResponseEntity.ok(Map.of("logoUrl", toAbsoluteUrl(request, "/api/system/logo/image")));
+        return ResponseEntity.ok(Map.of("logoUrl", "/api/system/logo/image"));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
