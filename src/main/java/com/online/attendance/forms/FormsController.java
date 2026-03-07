@@ -91,7 +91,7 @@ public class FormsController {
                 .company(company)
                 .title(request.getTitle().trim())
                 .description(trimToNull(request.getDescription()))
-                .companyLogoUrl(trimToNull(request.getCompanyLogoUrl()))
+                .companyLogoUrl(trimToNull(request.getCompanyLogoUrl()) != null ? trimToNull(request.getCompanyLogoUrl()) : trimToNull(company.getLogoUrl()))
                 .loginRequired(Boolean.TRUE.equals(request.getLoginRequired()))
                 .publicEnabled(Boolean.TRUE.equals(request.getPublicEnabled()))
                 .publicToken(token)
@@ -119,7 +119,8 @@ public class FormsController {
 
         form.setTitle(request.getTitle().trim());
         form.setDescription(trimToNull(request.getDescription()));
-        form.setCompanyLogoUrl(trimToNull(request.getCompanyLogoUrl()));
+        String desiredLogo = trimToNull(request.getCompanyLogoUrl());
+        form.setCompanyLogoUrl(desiredLogo != null ? desiredLogo : trimToNull(company.getLogoUrl()));
         form.setLoginRequired(Boolean.TRUE.equals(request.getLoginRequired()));
         form.setPublicEnabled(Boolean.TRUE.equals(request.getPublicEnabled()));
         form.setActive(Boolean.TRUE.equals(request.getActive()));
@@ -381,7 +382,9 @@ public class FormsController {
                 .companyId(form.getCompany() != null ? form.getCompany().getId() : null)
                 .title(form.getTitle())
                 .description(form.getDescription())
-                .companyLogoUrl(form.getCompanyLogoUrl())
+                .companyLogoUrl(form.getCompanyLogoUrl() != null && !form.getCompanyLogoUrl().isBlank()
+                        ? form.getCompanyLogoUrl()
+                        : (form.getCompany() != null ? form.getCompany().getLogoUrl() : null))
                 .loginRequired(form.isLoginRequired())
                 .publicEnabled(form.isPublicEnabled())
                 .publicToken(form.getPublicToken())
