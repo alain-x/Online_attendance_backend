@@ -5,6 +5,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -39,6 +41,25 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
                 Map.of("message", "Access denied")
+        );
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
+        String msg = "Invalid request";
+        if (ex.getBindingResult() != null && ex.getBindingResult().hasFieldErrors()) {
+            var fe = ex.getBindingResult().getFieldErrors().get(0);
+            String field = fe.getField() != null ? fe.getField() : "field";
+            String m = fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "is invalid";
+            msg = field + " " + m;
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", msg));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, String>> handleNotReadable(HttpMessageNotReadableException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                Map.of("message", "Invalid request body")
         );
     }
 }

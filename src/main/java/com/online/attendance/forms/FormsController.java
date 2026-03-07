@@ -141,8 +141,12 @@ public class FormsController {
 
             formFieldRepository.deleteAllByForm_Id(form.getId());
             saveFields(form, request.getFields());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage() != null ? e.getMessage() : "Invalid form fields"));
         } catch (DataIntegrityViolationException e) {
             return ResponseEntity.badRequest().body(Map.of("message", "Unable to update form. Please verify fields and try again."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Unable to update form due to an unexpected server error."));
         }
 
         List<FormField> fields = formFieldRepository.findAllByForm_IdOrderBySortOrderAsc(form.getId());
@@ -184,6 +188,8 @@ public class FormsController {
             return ResponseEntity.noContent().build();
         } catch (DataIntegrityViolationException e) {
             return ResponseEntity.badRequest().body(Map.of("message", "Cannot delete this form due to related data."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Unable to delete form due to an unexpected server error."));
         }
     }
 
@@ -312,10 +318,22 @@ public class FormsController {
         }
         for (UpsertFormFieldRequest r : fields) {
             if (r == null) continue;
+
+            String key = trimToNull(r.getKey());
+            String label = trimToNull(r.getLabel());
+            if (key == null) {
+                throw new IllegalArgumentException("Field key is required");
+            }
+            if (label == null) {
+                throw new IllegalArgumentException("Field label is required");
+            }
+            if (r.getType() == null) {
+                throw new IllegalArgumentException("Field type is required");
+            }
             FormField f = FormField.builder()
                     .form(form)
-                    .key(r.getKey().trim())
-                    .label(r.getLabel().trim())
+                    .key(key)
+                    .label(label)
                     .description(trimToNull(r.getDescription()))
                     .placeholder(trimToNull(r.getPlaceholder()))
                     .type(r.getType())
