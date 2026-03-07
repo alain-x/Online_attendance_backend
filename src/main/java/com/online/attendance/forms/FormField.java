@@ -22,7 +22,7 @@ public class FormField {
     @JoinColumn(name = "form_id", nullable = false, foreignKey = @ForeignKey(name = "fk_form_fields_form"))
     private Form form;
 
-    @Column(nullable = false, length = 64)
+    @Column(name = "field_key", nullable = false, length = 64)
     private String key;
 
     @Column(nullable = false, length = 200)
