@@ -5,6 +5,7 @@ public enum FieldType {
     TEXTAREA,
     CHECKBOX,
     RADIO,
+    SELECT,
     DATE,
     FILE
 }

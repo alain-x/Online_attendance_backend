@@ -31,6 +31,9 @@ public class FormField {
     @Column(length = 1000)
     private String description;
 
+    @Column(name = "placeholder", length = 300)
+    private String placeholder;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private FieldType type;

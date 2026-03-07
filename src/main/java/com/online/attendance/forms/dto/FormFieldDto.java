@@ -13,6 +13,7 @@ public class FormFieldDto {
     private String key;
     private String label;
     private String description;
+    private String placeholder;
     private FieldType type;
     private boolean required;
     private int sortOrder;

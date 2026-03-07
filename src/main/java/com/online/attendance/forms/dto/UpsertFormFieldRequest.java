@@ -24,6 +24,9 @@ public class UpsertFormFieldRequest {
     @Size(max = 1000)
     private String description;
 
+    @Size(max = 300)
+    private String placeholder;
+
     @NotNull
     private FieldType type;
 

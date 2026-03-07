@@ -84,6 +84,7 @@ public class PublicFormsController {
                     .key(f.getKey())
                     .label(f.getLabel())
                     .description(f.getDescription())
+                    .placeholder(f.getPlaceholder())
                     .type(f.getType())
                     .required(f.isRequired())
                     .sortOrder(f.getSortOrder())
