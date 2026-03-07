@@ -100,9 +100,59 @@ public class SystemBrandingController {
         if (!url.startsWith("/")) {
             return url;
         }
-        String scheme = request.getScheme();
-        String host = request.getServerName();
-        int port = request.getServerPort();
+
+        String forwarded = request.getHeader("Forwarded");
+        String xfProto = request.getHeader("X-Forwarded-Proto");
+        String xfHost = request.getHeader("X-Forwarded-Host");
+        String xfPort = request.getHeader("X-Forwarded-Port");
+
+        String scheme = null;
+        String host = null;
+        Integer port = null;
+
+        if (forwarded != null && !forwarded.isBlank()) {
+            // Example: Forwarded: proto=https;host=example.com
+            String[] parts = forwarded.split(";");
+            for (String part : parts) {
+                String p = part.trim();
+                int idx = p.indexOf('=');
+                if (idx <= 0) continue;
+                String k = p.substring(0, idx).trim();
+                String v = p.substring(idx + 1).trim();
+                if (v.startsWith("\"") && v.endsWith("\"") && v.length() >= 2) {
+                    v = v.substring(1, v.length() - 1);
+                }
+                if (scheme == null && "proto".equalsIgnoreCase(k)) {
+                    scheme = v;
+                } else if (host == null && "host".equalsIgnoreCase(k)) {
+                    host = v;
+                }
+            }
+        }
+
+        if (scheme == null && xfProto != null && !xfProto.isBlank()) {
+            scheme = xfProto.split(",")[0].trim();
+        }
+        if (host == null && xfHost != null && !xfHost.isBlank()) {
+            host = xfHost.split(",")[0].trim();
+        }
+        if (port == null && xfPort != null && !xfPort.isBlank()) {
+            try {
+                port = Integer.parseInt(xfPort.split(",")[0].trim());
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (scheme == null || scheme.isBlank()) {
+            scheme = request.getScheme();
+        }
+        if (host == null || host.isBlank()) {
+            host = request.getServerName();
+        }
+        if (port == null) {
+            port = request.getServerPort();
+        }
+
         boolean defaultPort = ("http".equalsIgnoreCase(scheme) && port == 80) || ("https".equalsIgnoreCase(scheme) && port == 443);
         return defaultPort ? String.format("%s://%s%s", scheme, host, url) : String.format("%s://%s:%d%s", scheme, host, port, url);
     }
