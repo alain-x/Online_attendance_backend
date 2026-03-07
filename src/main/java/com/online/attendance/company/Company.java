@@ -30,6 +30,15 @@ public class Company {
     @Column(name = "logo_url", length = 500)
     private String logoUrl;
 
+    @Lob
+    @Column(name = "logo_bytes")
+    @JsonIgnore
+    private byte[] logoBytes;
+
+    @Column(name = "logo_content_type", length = 100)
+    @JsonIgnore
+    private String logoContentType;
+
     @Column(name = "hourly_rate_default", precision = 12, scale = 2)
     private BigDecimal hourlyRateDefault;
 

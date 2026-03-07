@@ -133,7 +133,12 @@ public class AuthController {
         body.put("companyId", user.getCompany() != null ? user.getCompany().getId() : null);
         body.put("companySlug", user.getCompany() != null ? user.getCompany().getSlug() : null);
         body.put("companyName", user.getCompany() != null ? user.getCompany().getName() : null);
-        body.put("companyLogoUrl", user.getCompany() != null ? user.getCompany().getLogoUrl() : null);
+        if (user.getCompany() != null && user.getCompany().getId() != null
+                && user.getCompany().getLogoBytes() != null && user.getCompany().getLogoBytes().length > 0) {
+            body.put("companyLogoUrl", "/api/companies/" + user.getCompany().getId() + "/logo/image");
+        } else {
+            body.put("companyLogoUrl", user.getCompany() != null ? user.getCompany().getLogoUrl() : null);
+        }
 
         Long companyId = user.getCompany() != null ? user.getCompany().getId() : null;
         Employee employee = (user.getId() != null && companyId != null)

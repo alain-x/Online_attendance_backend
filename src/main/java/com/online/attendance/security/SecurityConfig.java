@@ -74,6 +74,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/system/favicon").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/system/favicon/image").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/system/branding").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/companies/*/logo/image").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/companies/register").permitAll()
                         .anyRequest().authenticated()

@@ -9,6 +9,7 @@ import com.online.attendance.user.Role;
 import com.online.attendance.user.UserRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -102,6 +103,8 @@ public class CompanyController {
         if (request.getLogoUrl() != null) {
             String v = request.getLogoUrl().trim();
             company.setLogoUrl(v.isBlank() ? null : v);
+            company.setLogoBytes(null);
+            company.setLogoContentType(null);
         }
         if (request.getHourlyRateDefault() != null) {
             company.setHourlyRateDefault(request.getHourlyRateDefault());
@@ -252,23 +255,23 @@ public class CompanyController {
             return ResponseEntity.badRequest().body(Map.of("message", "File is required"));
         }
 
-        String original = file.getOriginalFilename();
-        String ext = "";
-        if (original != null) {
-            int idx = original.lastIndexOf('.');
-            if (idx >= 0 && idx < original.length() - 1) {
-                ext = original.substring(idx);
-            }
-        }
-
-        Path dir = Paths.get("uploads", "company-logos");
-        Files.createDirectories(dir);
-        String filename = UUID.randomUUID() + ext;
-        Path out = dir.resolve(filename);
-        Files.write(out, file.getBytes());
-
-        company.setLogoUrl("/uploads/company-logos/" + filename);
+        company.setLogoBytes(file.getBytes());
+        company.setLogoContentType(file.getContentType());
+        company.setLogoUrl("/api/companies/" + company.getId() + "/logo/image");
         company = companyRepository.save(company);
         return ResponseEntity.ok(company);
+    }
+
+    @GetMapping("/{id}/logo/image")
+    public ResponseEntity<?> getLogoImage(@PathVariable Long id) {
+        Company company = companyRepository.findById(id).orElse(null);
+        if (company == null || company.getLogoBytes() == null || company.getLogoBytes().length == 0) {
+            return ResponseEntity.notFound().build();
+        }
+        String ct = company.getLogoContentType();
+        String contentType = (ct != null && !ct.isBlank()) ? ct : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType(contentType));
+        return ResponseEntity.ok().headers(headers).body(company.getLogoBytes());
     }
 }
