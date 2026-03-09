@@ -34,11 +34,13 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomUserDetailsService userDetailsService;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final com.online.attendance.billing.SubscriptionEnforcementFilter subscriptionEnforcementFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, CustomUserDetailsService userDetailsService, CorsConfigurationSource corsConfigurationSource) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, CustomUserDetailsService userDetailsService, CorsConfigurationSource corsConfigurationSource, com.online.attendance.billing.SubscriptionEnforcementFilter subscriptionEnforcementFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.userDetailsService = userDetailsService;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.subscriptionEnforcementFilter = subscriptionEnforcementFilter;
     }
 
     @Bean
@@ -75,11 +77,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/system/favicon/image").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/system/branding").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/companies/*/logo/image").permitAll()
+                        .requestMatchers("/api/pesapal/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/companies/register").permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(subscriptionEnforcementFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

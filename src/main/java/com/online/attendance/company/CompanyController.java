@@ -17,6 +17,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.online.attendance.billing.CompanySubscription;
+import com.online.attendance.billing.CompanySubscriptionRepository;
+import com.online.attendance.billing.SubscriptionStatus;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,13 +38,15 @@ public class CompanyController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentCompanyService currentCompanyService;
+    private final CompanySubscriptionRepository companySubscriptionRepository;
 
     public CompanyController(CompanyRepository companyRepository, UserRepository userRepository,
-                             PasswordEncoder passwordEncoder, CurrentCompanyService currentCompanyService) {
+                             PasswordEncoder passwordEncoder, CurrentCompanyService currentCompanyService, CompanySubscriptionRepository companySubscriptionRepository) {
         this.companyRepository = companyRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentCompanyService = currentCompanyService;
+        this.companySubscriptionRepository = companySubscriptionRepository;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -209,7 +214,15 @@ public class CompanyController {
                 .parentCompany(parent)
                 .build();
 
-        return ResponseEntity.ok(companyRepository.save(company));
+        company = companyRepository.save(company);
+        if (companySubscriptionRepository.findByCompany_Id(company.getId()).isEmpty()) {
+            companySubscriptionRepository.save(CompanySubscription.builder()
+                    .company(company)
+                    .status(SubscriptionStatus.INACTIVE)
+                    .updatedAt(java.time.Instant.now())
+                    .build());
+        }
+        return ResponseEntity.ok(company);
     }
 
     @PostMapping("/register")
@@ -223,6 +236,14 @@ public class CompanyController {
                 .slug(request.getCompanySlug())
                 .build();
         company = companyRepository.save(company);
+
+        if (companySubscriptionRepository.findByCompany_Id(company.getId()).isEmpty()) {
+            companySubscriptionRepository.save(CompanySubscription.builder()
+                    .company(company)
+                    .status(SubscriptionStatus.INACTIVE)
+                    .updatedAt(java.time.Instant.now())
+                    .build());
+        }
 
         AppUser admin = AppUser.builder()
                 .username(request.getAdminUsername())
