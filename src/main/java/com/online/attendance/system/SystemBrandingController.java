@@ -45,26 +45,31 @@ public class SystemBrandingController {
 
     @GetMapping("/branding")
     public ResponseEntity<?> getBranding(HttpServletRequest request) {
-        SystemBranding branding = getOrCreate();
-        String url;
-        if (branding.getLogoBytes() != null && branding.getLogoBytes().length > 0) {
-            url = "/api/system/logo/image";
-        } else {
-            url = branding.getLogoUrl();
-        }
+        try {
+            SystemBranding branding = getOrCreate();
+            String url;
+            if (branding.getLogoBytes() != null && branding.getLogoBytes().length > 0) {
+                url = "/api/system/logo/image";
+            } else {
+                url = branding.getLogoUrl();
+            }
 
-        String faviconUrl;
-        if (branding.getFaviconBytes() != null && branding.getFaviconBytes().length > 0) {
-            faviconUrl = "/api/system/favicon/image";
-        } else {
-            faviconUrl = branding.getFaviconUrl();
-        }
+            String faviconUrl;
+            if (branding.getFaviconBytes() != null && branding.getFaviconBytes().length > 0) {
+                faviconUrl = "/api/system/favicon/image";
+            } else {
+                faviconUrl = branding.getFaviconUrl();
+            }
 
-        return ResponseEntity.ok(new SystemBrandingResponse(
-                url,
-                faviconUrl,
-                branding.getSystemName()
-        ));
+            return ResponseEntity.ok(new SystemBrandingResponse(
+                    url,
+                    faviconUrl,
+                    branding.getSystemName()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to load branding: " + e.getMessage()));
+        }
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
