@@ -1,6 +1,7 @@
 package com.online.attendance.forms;
 
 import com.online.attendance.company.Company;
+import com.online.attendance.company.dto.CompanyResponse;
 import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.user.AppUser;
 import com.online.attendance.user.UserRepository;
@@ -44,6 +45,7 @@ public class FormsController {
     private final SubmissionFileRepository submissionFileRepository;
     private final CurrentCompanyService currentCompanyService;
     private final UserRepository userRepository;
+    private final com.online.attendance.company.CompanyRepository companyRepository;
 
     public FormsController(
             FormRepository formRepository,
@@ -51,7 +53,8 @@ public class FormsController {
             FormSubmissionRepository submissionRepository,
             SubmissionFileRepository submissionFileRepository,
             CurrentCompanyService currentCompanyService,
-            UserRepository userRepository
+            UserRepository userRepository,
+            com.online.attendance.company.CompanyRepository companyRepository
     ) {
         this.formRepository = formRepository;
         this.formFieldRepository = formFieldRepository;
@@ -59,13 +62,14 @@ public class FormsController {
         this.submissionFileRepository = submissionFileRepository;
         this.currentCompanyService = currentCompanyService;
         this.userRepository = userRepository;
+        this.companyRepository = companyRepository;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @GetMapping
     public List<FormDto> list(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
-        Company company = currentCompanyService.requireCompany(authentication, companyId);
-        List<Form> forms = formRepository.findAllByCompany_IdOrderByUpdatedAtDesc(company.getId());
+        CompanyResponse company = currentCompanyService.requireCompanyResponse(authentication, companyId);
+        List<Form> forms = formRepository.findAllByCompany_IdOrderByUpdatedAtDesc(company.id());
         List<FormDto> out = new ArrayList<>();
         for (Form f : forms) {
             out.add(toDto(f, null, company));
@@ -76,8 +80,8 @@ public class FormsController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @GetMapping("/{id}")
     public ResponseEntity<?> get(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
-        Company company = currentCompanyService.requireCompany(authentication, companyId);
-        Form form = formRepository.findByIdAndCompany_Id(id, company.getId()).orElse(null);
+        CompanyResponse company = currentCompanyService.requireCompanyResponse(authentication, companyId);
+        Form form = formRepository.findByIdAndCompany_Id(id, company.id()).orElse(null);
         if (form == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
@@ -88,16 +92,17 @@ public class FormsController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PostMapping
     public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody UpsertFormRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
-        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        CompanyResponse company = currentCompanyService.requireCompanyResponse(authentication, companyId);
+        Company companyRef = companyRepository.getReferenceById(company.id());
 
         Instant now = Instant.now();
         String token = generateToken();
 
         Form form = Form.builder()
-                .company(company)
+                .company(companyRef)
                 .title(request.getTitle().trim())
                 .description(trimToNull(request.getDescription()))
-                .companyLogoUrl(trimToNull(request.getCompanyLogoUrl()) != null ? trimToNull(request.getCompanyLogoUrl()) : trimToNull(company.getLogoUrl()))
+                .companyLogoUrl(trimToNull(request.getCompanyLogoUrl()) != null ? trimToNull(request.getCompanyLogoUrl()) : trimToNull(company.logoUrl()))
                 .loginRequired(Boolean.TRUE.equals(request.getLoginRequired()))
                 .publicEnabled(Boolean.TRUE.equals(request.getPublicEnabled()))
                 .publicToken(token)
@@ -122,8 +127,8 @@ public class FormsController {
     @PutMapping("/{id}")
     @Transactional
     public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @Valid @RequestBody UpsertFormRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
-        Company company = currentCompanyService.requireCompany(authentication, companyId);
-        Form form = formRepository.findByIdAndCompany_Id(id, company.getId()).orElse(null);
+        CompanyResponse company = currentCompanyService.requireCompanyResponse(authentication, companyId);
+        Form form = formRepository.findByIdAndCompany_Id(id, company.id()).orElse(null);
         if (form == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
@@ -131,7 +136,7 @@ public class FormsController {
         form.setTitle(request.getTitle().trim());
         form.setDescription(trimToNull(request.getDescription()));
         String desiredLogo = trimToNull(request.getCompanyLogoUrl());
-        form.setCompanyLogoUrl(desiredLogo != null ? desiredLogo : trimToNull(company.getLogoUrl()));
+        form.setCompanyLogoUrl(desiredLogo != null ? desiredLogo : trimToNull(company.logoUrl()));
         form.setLoginRequired(Boolean.TRUE.equals(request.getLoginRequired()));
         form.setPublicEnabled(Boolean.TRUE.equals(request.getPublicEnabled()));
         form.setActive(Boolean.TRUE.equals(request.getActive()));
@@ -153,7 +158,7 @@ public class FormsController {
             return ResponseEntity.badRequest().body(Map.of("message", "Unable to update form. Please verify fields and try again."));
         } catch (Exception e) {
             String errorId = UUID.randomUUID().toString();
-            log.error("Forms update failed. errorId={}, formId={}, companyId={}", errorId, id, company.getId(), e);
+            log.error("Forms update failed. errorId={}, formId={}, companyId={}", errorId, id, company.id(), e);
             return ResponseEntity.status(500).body(Map.of(
                     "message", "Unable to update form due to an unexpected server error.",
                     "errorId", errorId
@@ -167,8 +172,8 @@ public class FormsController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PostMapping("/{id}/rotate-token")
     public ResponseEntity<?> rotateToken(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
-        Company company = currentCompanyService.requireCompany(authentication, companyId);
-        Form form = formRepository.findByIdAndCompany_Id(id, company.getId()).orElse(null);
+        CompanyResponse company = currentCompanyService.requireCompanyResponse(authentication, companyId);
+        Form form = formRepository.findByIdAndCompany_Id(id, company.id()).orElse(null);
         if (form == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
@@ -182,8 +187,8 @@ public class FormsController {
     @DeleteMapping("/{id}")
     @Transactional
     public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
-        Company company = currentCompanyService.requireCompany(authentication, companyId);
-        Form form = formRepository.findByIdAndCompany_Id(id, company.getId()).orElse(null);
+        CompanyResponse company = currentCompanyService.requireCompanyResponse(authentication, companyId);
+        Form form = formRepository.findByIdAndCompany_Id(id, company.id()).orElse(null);
         if (form == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
@@ -202,7 +207,7 @@ public class FormsController {
             return ResponseEntity.badRequest().body(Map.of("message", "Cannot delete this form due to related data."));
         } catch (Exception e) {
             String errorId = UUID.randomUUID().toString();
-            log.error("Forms delete failed. errorId={}, formId={}, companyId={}", errorId, id, company.getId(), e);
+            log.error("Forms delete failed. errorId={}, formId={}, companyId={}", errorId, id, company.id(), e);
             return ResponseEntity.status(500).body(Map.of(
                     "message", "Unable to delete form due to an unexpected server error.",
                     "errorId", errorId
@@ -220,8 +225,9 @@ public class FormsController {
             HttpServletRequest request,
             @RequestHeader(value = "X-Company-Id", required = false) Long companyId
     ) throws IOException {
-        Company company = currentCompanyService.requireCompany(authentication, companyId);
-        Form form = formRepository.findByIdAndCompany_Id(id, company.getId()).orElse(null);
+        CompanyResponse company = currentCompanyService.requireCompanyResponse(authentication, companyId);
+        Company companyRef = companyRepository.getReferenceById(company.id());
+        Form form = formRepository.findByIdAndCompany_Id(id, company.id()).orElse(null);
         if (form == null || !form.isActive()) {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
@@ -235,7 +241,7 @@ public class FormsController {
 
         FormSubmission submission = FormSubmission.builder()
                 .form(form)
-                .company(company)
+                .company(companyRef)
                 .submittedAt(Instant.now())
                 .submittedByUsername(username)
                 .submittedByUserId(user != null ? user.getId() : null)
@@ -252,8 +258,8 @@ public class FormsController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @GetMapping("/{id}/submissions")
     public ResponseEntity<?> listSubmissions(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
-        Company company = currentCompanyService.requireCompany(authentication, companyId);
-        Form form = formRepository.findByIdAndCompany_Id(id, company.getId()).orElse(null);
+        CompanyResponse company = currentCompanyService.requireCompanyResponse(authentication, companyId);
+        Form form = formRepository.findByIdAndCompany_Id(id, company.id()).orElse(null);
         if (form == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Form not found"));
         }
@@ -264,7 +270,7 @@ public class FormsController {
             out.add(SubmissionDto.builder()
                     .id(s.getId())
                     .formId(form.getId())
-                    .companyId(company.getId())
+                    .companyId(company.id())
                     .submittedAt(s.getSubmittedAt())
                     .submittedByUsername(s.getSubmittedByUsername())
                     .submittedByUserId(s.getSubmittedByUserId())
@@ -277,9 +283,9 @@ public class FormsController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @GetMapping("/submissions/{submissionId}/files")
     public ResponseEntity<?> listSubmissionFiles(Authentication authentication, @PathVariable Long submissionId, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
-        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        Long companyIdValue = currentCompanyService.requireCompanyId(authentication, companyId);
         FormSubmission s = submissionRepository.findById(submissionId).orElse(null);
-        if (s == null || s.getCompany() == null || !company.getId().equals(s.getCompany().getId())) {
+        if (s == null || s.getCompany() == null || !companyIdValue.equals(s.getCompany().getId())) {
             return ResponseEntity.status(404).body(Map.of("message", "Submission not found"));
         }
 
@@ -301,9 +307,9 @@ public class FormsController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @GetMapping(value = "/files/{fileId}")
     public ResponseEntity<?> downloadFile(Authentication authentication, @PathVariable Long fileId, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) throws IOException {
-        Company company = currentCompanyService.requireCompany(authentication, companyId);
+        Long companyIdValue = currentCompanyService.requireCompanyId(authentication, companyId);
         SubmissionFile f = submissionFileRepository.findById(fileId).orElse(null);
-        if (f == null || f.getSubmission() == null || f.getSubmission().getCompany() == null || !company.getId().equals(f.getSubmission().getCompany().getId())) {
+        if (f == null || f.getSubmission() == null || f.getSubmission().getCompany() == null || !companyIdValue.equals(f.getSubmission().getCompany().getId())) {
             return ResponseEntity.status(404).body(Map.of("message", "File not found"));
         }
 
@@ -412,7 +418,7 @@ public class FormsController {
         }
     }
 
-    private FormDto toDto(Form form, List<FormField> fields, Company companyOverride) {
+    private FormDto toDto(Form form, List<FormField> fields, CompanyResponse company) {
         List<FormFieldDto> outFields = null;
         if (fields != null) {
             outFields = new ArrayList<>();
@@ -432,21 +438,14 @@ public class FormsController {
             }
         }
 
-        Company company = companyOverride;
-        if (company == null) {
-            // Only fall back to the relation if we weren't provided a company.
-            // (This may be lazily loaded depending on environment.)
-            company = form.getCompany();
-        }
-
         return FormDto.builder()
                 .id(form.getId())
-                .companyId(company != null ? company.getId() : null)
+                .companyId(company != null ? company.id() : null)
                 .title(form.getTitle())
                 .description(form.getDescription())
                 .companyLogoUrl(form.getCompanyLogoUrl() != null && !form.getCompanyLogoUrl().isBlank()
                         ? form.getCompanyLogoUrl()
-                        : (company != null ? company.getLogoUrl() : null))
+                        : (company != null ? company.logoUrl() : null))
                 .loginRequired(form.isLoginRequired())
                 .publicEnabled(form.isPublicEnabled())
                 .publicToken(form.getPublicToken())

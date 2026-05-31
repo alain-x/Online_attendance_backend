@@ -58,7 +58,7 @@ public class SubscriptionEnforcementFilter extends OncePerRequestFilter {
 
         CompanySubscription sub;
         try {
-            Long companyId = currentCompanyService.requireCompany(auth).getId();
+            Long companyId = currentCompanyService.requireCompanyId(auth);
             sub = (companyId != null) ? subscriptionRepository.findByCompany_Id(companyId).orElse(null) : null;
         } catch (Exception ex) {
             // If we can't resolve company, let existing auth handlers work.

@@ -44,8 +44,7 @@ public class FormField {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
-    @Lob
-    @Column(name = "options_json")
+    @Column(name = "options_json", columnDefinition = "TEXT")
     private String optionsJson;
 
     @Column(name = "accept", length = 300)

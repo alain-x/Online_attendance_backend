@@ -27,7 +27,20 @@ public class PostgresBinaryColumnMigrator implements CommandLineRunner {
         migrateColumn("companies", "logo_bytes");
         migrateColumn("system_branding", "logo_bytes");
         migrateColumn("system_branding", "favicon_bytes");
+        migrateTextColumn("form_fields", "options_json");
+        migrateTextColumn("form_submissions", "answers_json");
         migrateColumn("form_submission_files", "file_bytes");
+    }
+
+    private void migrateTextColumn(String table, String column) {
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE " + table + " ALTER COLUMN " + column + " TYPE TEXT USING " + column + "::text"
+            );
+            log.info("Migrated {}.{} to TEXT", table, column);
+        } catch (Exception ex) {
+            log.debug("Skip migrating {}.{}: {}", table, column, ex.getMessage());
+        }
     }
 
     private void migrateColumn(String table, String column) {

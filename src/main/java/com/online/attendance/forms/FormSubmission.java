@@ -42,7 +42,6 @@ public class FormSubmission {
     @Column(name = "ip_address", length = 80)
     private String ipAddress;
 
-    @Lob
-    @Column(name = "answers_json", nullable = false)
+    @Column(name = "answers_json", nullable = false, columnDefinition = "TEXT")
     private String answersJson;
 }
