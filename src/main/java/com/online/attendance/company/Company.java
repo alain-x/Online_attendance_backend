@@ -3,6 +3,8 @@ package com.online.attendance.company;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 
@@ -30,8 +32,8 @@ public class Company {
     @Column(name = "logo_url", length = 500)
     private String logoUrl;
 
-    @Lob
-    @Column(name = "logo_bytes")
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Column(name = "logo_bytes", columnDefinition = "BYTEA")
     @JsonIgnore
     private byte[] logoBytes;
 

@@ -2,6 +2,8 @@ package com.online.attendance.system;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -27,8 +29,8 @@ public class SystemBranding {
     @Column(name = "logo_path", length = 1000)
     private String logoPath;
 
-    @Lob
-    @Column(name = "logo_bytes", columnDefinition = "LONGBLOB")
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Column(name = "logo_bytes", columnDefinition = "BYTEA")
     private byte[] logoBytes;
 
     @Column(name = "logo_content_type", length = 120)
@@ -40,8 +42,8 @@ public class SystemBranding {
     @Column(name = "favicon_path", length = 1000)
     private String faviconPath;
 
-    @Lob
-    @Column(name = "favicon_bytes", columnDefinition = "LONGBLOB")
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Column(name = "favicon_bytes", columnDefinition = "BYTEA")
     private byte[] faviconBytes;
 
     @Column(name = "favicon_content_type", length = 120)

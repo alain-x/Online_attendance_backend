@@ -2,6 +2,8 @@ package com.online.attendance.forms;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "form_submission_files", indexes = {
@@ -37,7 +39,7 @@ public class SubmissionFile {
     @Column(name = "disk_path", length = 800)
     private String diskPath;
 
-    @Lob
-    @Column(name = "file_bytes")
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Column(name = "file_bytes", columnDefinition = "BYTEA")
     private byte[] fileBytes;
 }
