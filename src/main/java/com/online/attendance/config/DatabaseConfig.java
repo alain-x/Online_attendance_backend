@@ -26,7 +26,12 @@ public class DatabaseConfig {
             throw new IllegalStateException("DATABASE_URL is set but empty");
         }
 
-        ParsedPostgresUrl parsed = parsePostgresUrl(databaseUrl.trim());
+        ParsedPostgresUrl parsed = parseDatabaseUrl(
+                databaseUrl.trim(),
+                System.getenv("DB_USER"),
+                System.getenv("DB_PASSWORD")
+        );
+
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(parsed.jdbcUrl());
         config.setUsername(parsed.username());
@@ -38,30 +43,54 @@ public class DatabaseConfig {
         return new HikariDataSource(config);
     }
 
-    static ParsedPostgresUrl parsePostgresUrl(String databaseUrl) {
-        if (!databaseUrl.startsWith("postgres://") && !databaseUrl.startsWith("postgresql://")) {
-            throw new IllegalStateException("DATABASE_URL must use postgres:// or postgresql:// scheme");
-        }
-
-        URI uri = URI.create(databaseUrl.replace("postgres://", "postgresql://"));
-        String jdbcUrl = buildJdbcUrl(uri);
-
-        String username = null;
-        String password = "";
-        String userInfo = uri.getUserInfo();
-        if (StringUtils.hasText(userInfo)) {
-            String[] parts = userInfo.split(":", 2);
-            username = decode(parts[0]);
-            if (parts.length > 1) {
-                password = decode(parts[1]);
+    static ParsedPostgresUrl parseDatabaseUrl(String databaseUrl, String fallbackUser, String fallbackPassword) {
+        if (databaseUrl.startsWith("jdbc:postgresql://") || databaseUrl.startsWith("jdbc:postgres://")) {
+            String jdbcUrl = ensureSslMode(databaseUrl);
+            if (!StringUtils.hasText(fallbackUser)) {
+                throw new IllegalStateException("DATABASE_URL is JDBC format but DB_USER is not set");
             }
+            return new ParsedPostgresUrl(
+                    jdbcUrl,
+                    fallbackUser,
+                    fallbackPassword != null ? fallbackPassword : ""
+            );
         }
 
-        if (!StringUtils.hasText(username)) {
-            throw new IllegalStateException("DATABASE_URL is missing database username");
+        if (databaseUrl.startsWith("postgres://") || databaseUrl.startsWith("postgresql://")) {
+            URI uri = URI.create(databaseUrl.replace("postgres://", "postgresql://"));
+            String jdbcUrl = buildJdbcUrl(uri);
+
+            String username = null;
+            String password = "";
+            String userInfo = uri.getUserInfo();
+            if (StringUtils.hasText(userInfo)) {
+                String[] parts = userInfo.split(":", 2);
+                username = decode(parts[0]);
+                if (parts.length > 1) {
+                    password = decode(parts[1]);
+                }
+            }
+            if (!StringUtils.hasText(username)) {
+                username = fallbackUser;
+            }
+            if (!StringUtils.hasText(password) && fallbackPassword != null) {
+                password = fallbackPassword;
+            }
+            if (!StringUtils.hasText(username)) {
+                throw new IllegalStateException("DATABASE_URL is missing database username");
+            }
+            return new ParsedPostgresUrl(jdbcUrl, username, password);
         }
 
-        return new ParsedPostgresUrl(jdbcUrl, username, password);
+        throw new IllegalStateException(
+                "DATABASE_URL must use jdbc:postgresql://, postgres://, or postgresql:// scheme");
+    }
+
+    private static String ensureSslMode(String jdbcUrl) {
+        if (jdbcUrl.contains("sslmode=")) {
+            return jdbcUrl;
+        }
+        return jdbcUrl + (jdbcUrl.contains("?") ? "&" : "?") + "sslmode=require";
     }
 
     private static String buildJdbcUrl(URI uri) {
