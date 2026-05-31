@@ -1,5 +1,6 @@
 package com.online.attendance.company;
 
+import com.online.attendance.company.dto.CompanyResponse;
 import com.online.attendance.company.dto.CreateCompanyRequest;
 import com.online.attendance.company.dto.RegisterCompanyRequest;
 import com.online.attendance.company.dto.UpdateCompanyRequest;
@@ -51,23 +52,23 @@ public class CompanyController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @GetMapping
-    public List<Company> list(Authentication authentication) {
+    public List<CompanyResponse> list(Authentication authentication) {
         String username = currentCompanyService.requireUsername(authentication);
         String companySlug = currentCompanyService.requireCompanySlug(authentication);
         AppUser currentUser = userRepository.findByUsernameAndCompanySlug(username, companySlug).orElse(null);
         if (currentUser != null && currentUser.getRole() == Role.SYSTEM_ADMIN) {
-            return companyRepository.findAll();
+            return companyRepository.findAllResponses();
         }
 
         Company current = currentCompanyService.requireCompany(authentication);
         // Branch admins see only their own company. Parent admins see their company + direct branches.
         if (current.getParentCompanyId() != null) {
-            return List.of(current);
+            return companyRepository.findResponseById(current.getId()).map(List::of).orElse(List.of());
         }
 
-        List<Company> result = new ArrayList<>();
-        result.add(current);
-        result.addAll(companyRepository.findByParentCompany_Id(current.getId()));
+        List<CompanyResponse> result = new ArrayList<>();
+        companyRepository.findResponseById(current.getId()).ifPresent(result::add);
+        result.addAll(companyRepository.findBranchResponsesByParentId(current.getId()));
         return result;
     }
 
@@ -81,7 +82,9 @@ public class CompanyController {
         if (!canManageCompany(authentication, company)) {
             return ResponseEntity.status(403).body(Map.of("message", "You can only manage your own company account"));
         }
-        return ResponseEntity.ok(company);
+        return companyRepository.findResponseById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
@@ -114,8 +117,10 @@ public class CompanyController {
         if (request.getHourlyRateDefault() != null) {
             company.setHourlyRateDefault(request.getHourlyRateDefault());
         }
-        company = companyRepository.save(company);
-        return ResponseEntity.ok(company);
+        companyRepository.save(company);
+        return companyRepository.findResponseById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -149,8 +154,10 @@ public class CompanyController {
             return ResponseEntity.badRequest().body(Map.of("message", "Field 'active' (boolean) is required"));
         }
         company.setActive((Boolean) activeObj);
-        company = companyRepository.save(company);
-        return ResponseEntity.ok(company);
+        companyRepository.save(company);
+        return companyRepository.findResponseById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     private boolean canManageCompany(Authentication authentication, Company company) {
@@ -185,7 +192,7 @@ public class CompanyController {
         if (!current.getId().equals(parent.getId()) && (current.getParentCompany() == null || !current.getParentCompany().getId().equals(parent.getId()))) {
             return ResponseEntity.status(403).body(Map.of("message", "Not allowed to list branches of this company"));
         }
-        return ResponseEntity.ok(companyRepository.findByParentCompany_Id(id));
+        return ResponseEntity.ok(companyRepository.findBranchResponsesByParentId(id));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -222,7 +229,7 @@ public class CompanyController {
                     .updatedAt(java.time.Instant.now())
                     .build());
         }
-        return ResponseEntity.ok(company);
+        return ResponseEntity.ok(CompanyResponse.from(company));
     }
 
     @PostMapping("/register")
@@ -279,20 +286,29 @@ public class CompanyController {
         company.setLogoBytes(file.getBytes());
         company.setLogoContentType(file.getContentType());
         company.setLogoUrl("/api/companies/" + company.getId() + "/logo/image");
-        company = companyRepository.save(company);
-        return ResponseEntity.ok(company);
+        companyRepository.save(company);
+        return companyRepository.findResponseById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Backward-compatible alias when logoUrl omits /image */
+    @GetMapping("/{id}/logo")
+    public ResponseEntity<?> getLogo(@PathVariable Long id) {
+        return getLogoImage(id);
     }
 
     @GetMapping("/{id}/logo/image")
     public ResponseEntity<?> getLogoImage(@PathVariable Long id) {
-        Company company = companyRepository.findById(id).orElse(null);
-        if (company == null || company.getLogoBytes() == null || company.getLogoBytes().length == 0) {
-            return ResponseEntity.notFound().build();
-        }
-        String ct = company.getLogoContentType();
-        String contentType = (ct != null && !ct.isBlank()) ? ct : MediaType.APPLICATION_OCTET_STREAM_VALUE;
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.parseMediaType(contentType));
-        return ResponseEntity.ok().headers(headers).body(company.getLogoBytes());
+        return companyRepository.findLogoViewById(id)
+                .filter(view -> view.getLogoBytes() != null && view.getLogoBytes().length > 0)
+                .map(view -> {
+                    String ct = view.getLogoContentType();
+                    String contentType = (ct != null && !ct.isBlank()) ? ct : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.setContentType(MediaType.parseMediaType(contentType));
+                    return ResponseEntity.ok().headers(headers).body(view.getLogoBytes());
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 }
