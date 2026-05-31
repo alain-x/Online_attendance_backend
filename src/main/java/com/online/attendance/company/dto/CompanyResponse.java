@@ -14,7 +14,7 @@ public record CompanyResponse(
         Long parentCompanyId
 ) {
     public CompanyResponse {
-        logoUrl = normalizeLogoUrl(logoUrl);
+        logoUrl = normalizeLogoUrl(logoUrl, id);
     }
 
     public static CompanyResponse from(Company company) {
@@ -29,9 +29,12 @@ public record CompanyResponse(
         );
     }
 
-    private static String normalizeLogoUrl(String logoUrl) {
+    private static String normalizeLogoUrl(String logoUrl, Long companyId) {
         if (logoUrl != null && logoUrl.matches("/api/companies/\\d+/logo$")) {
             return logoUrl + "/image";
+        }
+        if (logoUrl != null && (logoUrl.startsWith("/uploads/") || logoUrl.startsWith("uploads/"))) {
+            return companyId != null ? "/api/companies/" + companyId + "/logo/image" : null;
         }
         return logoUrl;
     }

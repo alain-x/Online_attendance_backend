@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
-@Order(1)
+@Order(2)
 public class BootstrapAdminUser implements CommandLineRunner {
 
     private final UserRepository userRepository;

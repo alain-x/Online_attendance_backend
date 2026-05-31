@@ -2,6 +2,7 @@ package com.online.attendance.auth;
 
 import com.online.attendance.auth.dto.LoginRequest;
 import com.online.attendance.auth.dto.LoginResponse;
+import com.online.attendance.company.CompanyRepository;
 import com.online.attendance.employee.Employee;
 import com.online.attendance.employee.EmployeeRepository;
 import com.online.attendance.security.CurrentCompanyService;
@@ -30,14 +31,16 @@ public class AuthController {
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
     private final CurrentCompanyService currentCompanyService;
+    private final CompanyRepository companyRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, UserRepository userRepository, EmployeeRepository employeeRepository, CurrentCompanyService currentCompanyService, PasswordEncoder passwordEncoder) {
+    public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, UserRepository userRepository, EmployeeRepository employeeRepository, CurrentCompanyService currentCompanyService, CompanyRepository companyRepository, PasswordEncoder passwordEncoder) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userRepository = userRepository;
         this.employeeRepository = employeeRepository;
         this.currentCompanyService = currentCompanyService;
+        this.companyRepository = companyRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -133,19 +136,23 @@ public class AuthController {
         body.put("companyId", user.getCompany() != null ? user.getCompany().getId() : null);
         body.put("companySlug", user.getCompany() != null ? user.getCompany().getSlug() : null);
         body.put("companyName", user.getCompany() != null ? user.getCompany().getName() : null);
-        if (user.getCompany() != null && user.getCompany().getId() != null
-                && user.getCompany().getLogoBytes() != null && user.getCompany().getLogoBytes().length > 0) {
-            body.put("companyLogoUrl", "/api/companies/" + user.getCompany().getId() + "/logo/image");
-        } else {
-            body.put("companyLogoUrl", user.getCompany() != null ? user.getCompany().getLogoUrl() : null);
-        }
-
         Long companyId = user.getCompany() != null ? user.getCompany().getId() : null;
+        body.put("companyLogoUrl", resolveCompanyLogoUrl(companyId));
         Employee employee = (user.getId() != null && companyId != null)
                 ? employeeRepository.findByUserIdAndUserCompanyId(user.getId(), companyId).orElse(null)
                 : null;
         body.put("profileImageUrl", employee != null ? employee.getProfileImageUrl() : null);
 
         return ResponseEntity.ok(body);
+    }
+
+    private String resolveCompanyLogoUrl(Long companyId) {
+        if (companyId == null) {
+            return null;
+        }
+        return companyRepository.findLogoViewById(companyId)
+                .filter(view -> view.getLogoBytes() != null && view.getLogoBytes().length > 0)
+                .map(view -> "/api/companies/" + companyId + "/logo/image")
+                .orElse(null);
     }
 }
