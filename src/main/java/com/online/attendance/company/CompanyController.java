@@ -8,6 +8,7 @@ import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.user.AppUser;
 import com.online.attendance.user.Role;
 import com.online.attendance.user.UserRepository;
+import com.online.attendance.user.dto.UserCompanyContext;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpHeaders;
@@ -55,48 +56,52 @@ public class CompanyController {
     public List<CompanyResponse> list(Authentication authentication) {
         String username = currentCompanyService.requireUsername(authentication);
         String companySlug = currentCompanyService.requireCompanySlug(authentication);
-        AppUser currentUser = userRepository.findByUsernameAndCompanySlug(username, companySlug).orElse(null);
-        if (currentUser != null && currentUser.getRole() == Role.SYSTEM_ADMIN) {
+        UserCompanyContext ctx = userRepository.findUserCompanyContext(username, companySlug).orElse(null);
+        if (ctx == null) {
+            return List.of();
+        }
+        if (ctx.role() == Role.SYSTEM_ADMIN) {
             return companyRepository.findAllResponses();
         }
 
-        Company current = currentCompanyService.requireCompany(authentication);
-        // Branch admins see only their own company. Parent admins see their company + direct branches.
-        if (current.getParentCompanyId() != null) {
-            return companyRepository.findResponseById(current.getId()).map(List::of).orElse(List.of());
+        Long companyId = ctx.companyId();
+        if (ctx.parentCompanyId() != null) {
+            return companyRepository.findResponseById(companyId).map(List::of).orElse(List.of());
         }
 
         List<CompanyResponse> result = new ArrayList<>();
-        companyRepository.findResponseById(current.getId()).ifPresent(result::add);
-        result.addAll(companyRepository.findBranchResponsesByParentId(current.getId()));
+        companyRepository.findResponseById(companyId).ifPresent(result::add);
+        result.addAll(companyRepository.findBranchResponsesByParentId(companyId));
         return result;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(Authentication authentication, @PathVariable Long id) {
-        Company company = companyRepository.findById(id).orElse(null);
+        CompanyResponse company = companyRepository.findResponseById(id).orElse(null);
         if (company == null) {
             return ResponseEntity.notFound().build();
         }
-        if (!canManageCompany(authentication, company)) {
+        if (!canManageCompany(authentication, company.id(), company.parentCompanyId())) {
             return ResponseEntity.status(403).body(Map.of("message", "You can only manage your own company account"));
         }
-        return companyRepository.findResponseById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        return ResponseEntity.ok(company);
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
     @PutMapping("/{id}")
     public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id,
                                     @Valid @RequestBody UpdateCompanyRequest request) {
+        CompanyResponse summary = companyRepository.findResponseById(id).orElse(null);
+        if (summary == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!canManageCompany(authentication, summary.id(), summary.parentCompanyId())) {
+            return ResponseEntity.status(403).body(Map.of("message", "You can only manage your own company account"));
+        }
         Company company = companyRepository.findById(id).orElse(null);
         if (company == null) {
             return ResponseEntity.notFound().build();
-        }
-        if (!canManageCompany(authentication, company)) {
-            return ResponseEntity.status(403).body(Map.of("message", "You can only manage your own company account"));
         }
         if (request.getName() != null && !request.getName().isBlank()) {
             company.setName(request.getName().trim());
@@ -126,12 +131,16 @@ public class CompanyController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id) {
+        CompanyResponse summary = companyRepository.findResponseById(id).orElse(null);
+        if (summary == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!canManageCompany(authentication, summary.id(), summary.parentCompanyId())) {
+            return ResponseEntity.status(403).body(Map.of("message", "You can only manage your own company account"));
+        }
         Company company = companyRepository.findById(id).orElse(null);
         if (company == null) {
             return ResponseEntity.notFound().build();
-        }
-        if (!canManageCompany(authentication, company)) {
-            return ResponseEntity.status(403).body(Map.of("message", "You can only manage your own company account"));
         }
         long userCount = userRepository.countByCompanyId(id);
         if (userCount > 0) {
@@ -160,36 +169,39 @@ public class CompanyController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    private boolean canManageCompany(Authentication authentication, Company company) {
+    private boolean canManageCompany(Authentication authentication, Long companyId, Long parentCompanyId) {
         String username = currentCompanyService.requireUsername(authentication);
         String companySlug = currentCompanyService.requireCompanySlug(authentication);
-        AppUser currentUser = userRepository.findByUsernameAndCompanySlug(username, companySlug).orElse(null);
-        if (currentUser == null) {
+        UserCompanyContext ctx = userRepository.findUserCompanyContext(username, companySlug).orElse(null);
+        if (ctx == null || ctx.companyId() == null) {
             return false;
         }
-        if (currentUser.getRole() == Role.SYSTEM_ADMIN) {
+        if (ctx.role() == Role.SYSTEM_ADMIN) {
             return true;
         }
-        if (currentUser.getCompany() == null || currentUser.getCompany().getId() == null) {
-            return false;
-        }
-        Long currentCompanyId = currentUser.getCompany().getId();
-        if (company.getId() != null && currentCompanyId.equals(company.getId())) {
+        Long currentCompanyId = ctx.companyId();
+        if (companyId != null && currentCompanyId.equals(companyId)) {
             return true;
         }
-        Long parentCompanyId = company.getParentCompanyId();
         return parentCompanyId != null && currentCompanyId.equals(parentCompanyId);
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @GetMapping("/{id}/branches")
     public ResponseEntity<?> listBranches(Authentication authentication, @PathVariable Long id) {
-        Company parent = companyRepository.findById(id).orElse(null);
+        CompanyResponse parent = companyRepository.findResponseById(id).orElse(null);
         if (parent == null) {
             return ResponseEntity.notFound().build();
         }
-        Company current = currentCompanyService.requireCompany(authentication);
-        if (!current.getId().equals(parent.getId()) && (current.getParentCompany() == null || !current.getParentCompany().getId().equals(parent.getId()))) {
+        String username = currentCompanyService.requireUsername(authentication);
+        String companySlug = currentCompanyService.requireCompanySlug(authentication);
+        UserCompanyContext ctx = userRepository.findUserCompanyContext(username, companySlug).orElse(null);
+        if (ctx == null) {
+            return ResponseEntity.status(403).body(Map.of("message", "Not allowed to list branches of this company"));
+        }
+        if (ctx.role() != Role.SYSTEM_ADMIN
+                && !ctx.companyId().equals(parent.id())
+                && (parent.parentCompanyId() == null || !ctx.companyId().equals(parent.parentCompanyId()))) {
             return ResponseEntity.status(403).body(Map.of("message", "Not allowed to list branches of this company"));
         }
         return ResponseEntity.ok(companyRepository.findBranchResponsesByParentId(id));
@@ -272,12 +284,16 @@ public class CompanyController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PostMapping(value = "/{id}/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadLogo(Authentication authentication, @PathVariable Long id, @RequestPart("file") @NotNull MultipartFile file) throws IOException {
+        CompanyResponse summary = companyRepository.findResponseById(id).orElse(null);
+        if (summary == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!canManageCompany(authentication, summary.id(), summary.parentCompanyId())) {
+            return ResponseEntity.status(403).body(Map.of("message", "You can only manage your own company account"));
+        }
         Company company = companyRepository.findById(id).orElse(null);
         if (company == null) {
             return ResponseEntity.notFound().build();
-        }
-        if (!canManageCompany(authentication, company)) {
-            return ResponseEntity.status(403).body(Map.of("message", "You can only manage your own company account"));
         }
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "File is required"));
@@ -300,15 +316,19 @@ public class CompanyController {
 
     @GetMapping("/{id}/logo/image")
     public ResponseEntity<?> getLogoImage(@PathVariable Long id) {
-        return companyRepository.findLogoViewById(id)
-                .filter(view -> view.getLogoBytes() != null && view.getLogoBytes().length > 0)
-                .map(view -> {
-                    String ct = view.getLogoContentType();
-                    String contentType = (ct != null && !ct.isBlank()) ? ct : MediaType.APPLICATION_OCTET_STREAM_VALUE;
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.setContentType(MediaType.parseMediaType(contentType));
-                    return ResponseEntity.ok().headers(headers).body(view.getLogoBytes());
-                })
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            return companyRepository.findLogoViewById(id)
+                    .filter(view -> view.getLogoBytes() != null && view.getLogoBytes().length > 0)
+                    .map(view -> {
+                        String ct = view.getLogoContentType();
+                        String contentType = (ct != null && !ct.isBlank()) ? ct : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+                        HttpHeaders headers = new HttpHeaders();
+                        headers.setContentType(MediaType.parseMediaType(contentType));
+                        return ResponseEntity.ok().headers(headers).body(view.getLogoBytes());
+                    })
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (RuntimeException ex) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }

@@ -1,6 +1,9 @@
 package com.online.attendance.user;
 
+import com.online.attendance.user.dto.UserCompanyContext;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,4 +20,16 @@ public interface UserRepository extends JpaRepository<AppUser, Long> {
     List<AppUser> findAllByCompanyId(Long companyId);
     Optional<AppUser> findByIdAndCompanyId(Long id, Long companyId);
     long countByCompanyId(Long companyId);
+
+    @Query("""
+            SELECT new com.online.attendance.user.dto.UserCompanyContext(u.role, c.id, pc.id)
+            FROM AppUser u
+            JOIN u.company c
+            LEFT JOIN c.parentCompany pc
+            WHERE u.username = :username AND c.slug = :companySlug
+            """)
+    Optional<UserCompanyContext> findUserCompanyContext(
+            @Param("username") String username,
+            @Param("companySlug") String companySlug
+    );
 }
