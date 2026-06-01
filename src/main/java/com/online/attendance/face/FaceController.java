@@ -3,6 +3,7 @@ package com.online.attendance.face;
 import com.online.attendance.audit.AuditService;
 import com.online.attendance.company.Company;
 import com.online.attendance.employee.Employee;
+import com.online.attendance.employee.EmployeeProfileImageService;
 import com.online.attendance.employee.EmployeeRepository;
 import com.online.attendance.security.CurrentCompanyService;
 import jakarta.validation.constraints.NotNull;
@@ -15,10 +16,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.UUID;
 import java.util.Map;
 
 @RestController
@@ -30,19 +27,22 @@ public class FaceController {
     private final OpenCvImageQualityService openCvImageQualityService;
     private final CurrentCompanyService currentCompanyService;
     private final AuditService auditService;
+    private final EmployeeProfileImageService employeeProfileImageService;
 
     public FaceController(
             EmployeeRepository employeeRepository,
             FaceService faceService,
             OpenCvImageQualityService openCvImageQualityService,
             CurrentCompanyService currentCompanyService,
-            AuditService auditService
+            AuditService auditService,
+            EmployeeProfileImageService employeeProfileImageService
     ) {
         this.employeeRepository = employeeRepository;
         this.faceService = faceService;
         this.openCvImageQualityService = openCvImageQualityService;
         this.currentCompanyService = currentCompanyService;
         this.auditService = auditService;
+        this.employeeProfileImageService = employeeProfileImageService;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','EMPLOYEE', 'ADMIN')")
@@ -82,7 +82,7 @@ public class FaceController {
 
         if (image != null && !image.isEmpty()) {
             try {
-                saveEmployeeProfileImage(company.getId(), employee, image);
+                employeeProfileImageService.saveProfileImage(employee, image);
             } catch (Exception ignored) {
             }
         }
@@ -138,7 +138,7 @@ public class FaceController {
 
         if (image != null && !image.isEmpty()) {
             try {
-                saveEmployeeProfileImage(company.getId(), employee, image);
+                employeeProfileImageService.saveProfileImage(employee, image);
             } catch (Exception ignored) {
             }
         }
@@ -156,39 +156,4 @@ public class FaceController {
         return ResponseEntity.ok(Map.of("message", "Face enrolled"));
     }
 
-    private void saveEmployeeProfileImage(Long companyId, Employee employee, MultipartFile image) throws IOException {
-        if (employee == null || employee.getId() == null || image == null || image.isEmpty()) {
-            return;
-        }
-
-        Path dir = Paths.get("uploads", "profile-images", String.valueOf(companyId != null ? companyId : 0L));
-        Files.createDirectories(dir);
-
-        String ext = ".jpg";
-        String original = image.getOriginalFilename();
-        if (original != null) {
-            int idx = original.lastIndexOf('.');
-            if (idx >= 0 && idx < original.length() - 1) {
-                String candidate = original.substring(idx);
-                if (candidate.length() <= 10) {
-                    ext = candidate;
-                }
-            }
-        }
-
-        String filename = "emp-" + employee.getId() + "-" + UUID.randomUUID() + ext;
-        Path out = dir.resolve(filename);
-        Files.write(out, image.getBytes());
-
-        String prevPath = employee.getProfileImagePath();
-        if (prevPath != null && !prevPath.isBlank()) {
-            try {
-                Files.deleteIfExists(Paths.get(prevPath));
-            } catch (Exception ignored) {
-            }
-        }
-
-        employee.setProfileImagePath(out.toString());
-        employee.setProfileImageUrl("/uploads/profile-images/" + (companyId != null ? companyId : 0L) + "/" + filename);
-    }
 }

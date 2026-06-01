@@ -8,6 +8,7 @@ import com.online.attendance.attendance.dto.BulkTimesheetImportResponse;
 import com.online.attendance.audit.AuditService;
 import com.online.attendance.company.Company;
 import com.online.attendance.employee.Employee;
+import com.online.attendance.employee.EmployeeProfileImageService;
 import com.online.attendance.employee.EmployeeRepository;
 import com.online.attendance.face.FaceService;
 import com.online.attendance.face.OpenCvImageQualityService;
@@ -25,9 +26,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -48,6 +46,7 @@ public class AttendanceController {
     private final CurrentCompanyService currentCompanyService;
     private final AuditService auditService;
     private final UserRepository userRepository;
+    private final EmployeeProfileImageService employeeProfileImageService;
 
     public AttendanceController(
             AttendanceRepository attendanceRepository,
@@ -58,7 +57,8 @@ public class AttendanceController {
             OpenCvImageQualityService openCvImageQualityService,
             CurrentCompanyService currentCompanyService,
             AuditService auditService,
-            UserRepository userRepository
+            UserRepository userRepository,
+            EmployeeProfileImageService employeeProfileImageService
     ) {
         this.attendanceRepository = attendanceRepository;
         this.breakRepository = breakRepository;
@@ -69,6 +69,7 @@ public class AttendanceController {
         this.currentCompanyService = currentCompanyService;
         this.auditService = auditService;
         this.userRepository = userRepository;
+        this.employeeProfileImageService = employeeProfileImageService;
     }
 
     @PreAuthorize("isAuthenticated()")
@@ -99,7 +100,7 @@ public class AttendanceController {
             boolean ok = faceService.verify(employee, image, null);
             if (ok) {
                 try {
-                    saveEmployeeProfileImage(company.getId(), employee, image);
+                    employeeProfileImageService.saveProfileImage(employee, image);
                     employeeRepository.save(employee);
                 } catch (Exception ignored) {
                 }
@@ -120,7 +121,7 @@ public class AttendanceController {
         boolean ok = faceService.verify(employee, image, descriptorJson);
         if (ok) {
             try {
-                saveEmployeeProfileImage(company.getId(), employee, image);
+                employeeProfileImageService.saveProfileImage(employee, image);
                 employeeRepository.save(employee);
             } catch (Exception ignored) {
             }
@@ -141,42 +142,6 @@ public class AttendanceController {
                 "faceVerified", ok,
                 "message", ok ? "Face verified" : "Face not verified"
         ));
-    }
-
-    private void saveEmployeeProfileImage(Long companyId, Employee employee, MultipartFile image) throws IOException {
-        if (employee == null || employee.getId() == null || image == null || image.isEmpty()) {
-            return;
-        }
-
-        Path dir = Paths.get("uploads", "profile-images", String.valueOf(companyId != null ? companyId : 0L));
-        Files.createDirectories(dir);
-
-        String ext = ".jpg";
-        String original = image.getOriginalFilename();
-        if (original != null) {
-            int idx = original.lastIndexOf('.');
-            if (idx >= 0 && idx < original.length() - 1) {
-                String candidate = original.substring(idx);
-                if (candidate.length() <= 10) {
-                    ext = candidate;
-                }
-            }
-        }
-
-        String filename = "emp-" + employee.getId() + "-" + UUID.randomUUID() + ext;
-        Path out = dir.resolve(filename);
-        Files.write(out, image.getBytes());
-
-        String prevPath = employee.getProfileImagePath();
-        if (prevPath != null && !prevPath.isBlank()) {
-            try {
-                Files.deleteIfExists(Paths.get(prevPath));
-            } catch (Exception ignored) {
-            }
-        }
-
-        employee.setProfileImagePath(out.toString());
-        employee.setProfileImageUrl("/uploads/profile-images/" + (companyId != null ? companyId : 0L) + "/" + filename);
     }
 
     @PreAuthorize("isAuthenticated()")

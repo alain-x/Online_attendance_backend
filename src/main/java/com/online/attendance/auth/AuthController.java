@@ -3,6 +3,7 @@ package com.online.attendance.auth;
 import com.online.attendance.auth.dto.LoginRequest;
 import com.online.attendance.auth.dto.LoginResponse;
 import com.online.attendance.company.CompanyRepository;
+import com.online.attendance.employee.EmployeeProfileImageService;
 import com.online.attendance.employee.Employee;
 import com.online.attendance.employee.EmployeeRepository;
 import com.online.attendance.security.CurrentCompanyService;
@@ -141,7 +142,7 @@ public class AuthController {
         Employee employee = (user.getId() != null && companyId != null)
                 ? employeeRepository.findByUserIdAndUserCompanyId(user.getId(), companyId).orElse(null)
                 : null;
-        body.put("profileImageUrl", employee != null ? employee.getProfileImageUrl() : null);
+        body.put("profileImageUrl", resolveProfileImageUrl(employee));
 
         return ResponseEntity.ok(body);
     }
@@ -154,5 +155,21 @@ public class AuthController {
                 .filter(view -> view.getLogoBytes() != null && view.getLogoBytes().length > 0)
                 .map(view -> "/api/companies/" + companyId + "/logo/image")
                 .orElse(null);
+    }
+
+    private String resolveProfileImageUrl(Employee employee) {
+        if (employee == null || employee.getId() == null) {
+            return null;
+        }
+        return employeeRepository.findProfileImageById(employee.getId())
+                .filter(view -> view.getProfileImageBytes() != null && view.getProfileImageBytes().length > 0)
+                .map(view -> EmployeeProfileImageService.profileImageApiUrl(employee.getId()))
+                .orElseGet(() -> {
+                    String url = employee.getProfileImageUrl();
+                    if (url != null && (url.startsWith("/uploads/") || url.startsWith("uploads/"))) {
+                        return EmployeeProfileImageService.profileImageApiUrl(employee.getId());
+                    }
+                    return url;
+                });
     }
 }

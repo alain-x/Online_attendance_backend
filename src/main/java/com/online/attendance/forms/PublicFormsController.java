@@ -1,5 +1,7 @@
 package com.online.attendance.forms;
 
+import com.online.attendance.company.CompanyRepository;
+import com.online.attendance.company.dto.CompanyResponse;
 import com.online.attendance.forms.dto.FormDto;
 import com.online.attendance.forms.dto.FormFieldDto;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,17 +23,20 @@ public class PublicFormsController {
     private final FormFieldRepository formFieldRepository;
     private final FormSubmissionRepository submissionRepository;
     private final SubmissionFileRepository submissionFileRepository;
+    private final CompanyRepository companyRepository;
 
     public PublicFormsController(
             FormRepository formRepository,
             FormFieldRepository formFieldRepository,
             FormSubmissionRepository submissionRepository,
-            SubmissionFileRepository submissionFileRepository
+            SubmissionFileRepository submissionFileRepository,
+            CompanyRepository companyRepository
     ) {
         this.formRepository = formRepository;
         this.formFieldRepository = formFieldRepository;
         this.submissionRepository = submissionRepository;
         this.submissionFileRepository = submissionFileRepository;
+        this.companyRepository = companyRepository;
     }
 
     @GetMapping("/{token}")
@@ -93,14 +98,14 @@ public class PublicFormsController {
                     .build());
         }
 
+        Long companyId = formRepository.findCompanyIdById(form.getId()).orElse(null);
+
         return FormDto.builder()
                 .id(form.getId())
-                .companyId(form.getCompany() != null ? form.getCompany().getId() : null)
+                .companyId(companyId)
                 .title(form.getTitle())
                 .description(form.getDescription())
-                .companyLogoUrl(form.getCompanyLogoUrl() != null && !form.getCompanyLogoUrl().isBlank()
-                        ? form.getCompanyLogoUrl()
-                        : (form.getCompany() != null ? form.getCompany().getLogoUrl() : null))
+                .companyLogoUrl(resolveCompanyLogoUrl(form.getCompanyLogoUrl(), companyId))
                 .loginRequired(form.isLoginRequired())
                 .publicEnabled(form.isPublicEnabled())
                 .publicToken(form.getPublicToken())
@@ -110,6 +115,27 @@ public class PublicFormsController {
                 .updatedAt(form.getUpdatedAt())
                 .fields(outFields)
                 .build();
+    }
+
+    private String resolveCompanyLogoUrl(String formLogoOverride, Long companyId) {
+        if (formLogoOverride != null && !formLogoOverride.isBlank()) {
+            if (formLogoOverride.startsWith("/uploads/") || formLogoOverride.startsWith("uploads/")) {
+                return companyId != null ? "/api/companies/" + companyId + "/logo/image" : null;
+            }
+            if (formLogoOverride.matches("/api/companies/\\d+/logo$")) {
+                return formLogoOverride + "/image";
+            }
+            return formLogoOverride;
+        }
+        if (companyId == null) {
+            return null;
+        }
+        return companyRepository.findLogoViewById(companyId)
+                .filter(view -> view.getLogoBytes() != null && view.getLogoBytes().length > 0)
+                .map(view -> "/api/companies/" + companyId + "/logo/image")
+                .orElseGet(() -> companyRepository.findResponseById(companyId)
+                        .map(CompanyResponse::logoUrl)
+                        .orElse(null));
     }
 
     private void saveSubmissionFiles(Form form, FormSubmission submission, MultipartHttpServletRequest multipart) throws IOException {

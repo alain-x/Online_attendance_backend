@@ -30,6 +30,7 @@ public class PostgresBinaryColumnMigrator implements CommandLineRunner {
         migrateTextColumn("form_fields", "options_json");
         migrateTextColumn("form_submissions", "answers_json");
         migrateColumn("form_submission_files", "file_bytes");
+        migrateColumn("employees", "profile_image_bytes");
     }
 
     private void migrateTextColumn(String table, String column) {

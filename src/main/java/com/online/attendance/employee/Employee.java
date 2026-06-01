@@ -3,6 +3,8 @@ package com.online.attendance.employee;
 import com.online.attendance.user.AppUser;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 
@@ -54,6 +56,13 @@ public class Employee {
 
     @Column(name = "profile_image_path", length = 1000)
     private String profileImagePath;
+
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Column(name = "profile_image_bytes", columnDefinition = "BYTEA")
+    private byte[] profileImageBytes;
+
+    @Column(name = "profile_image_content_type", length = 120)
+    private String profileImageContentType;
 
     @Column(name = "hourly_rate_override", precision = 12, scale = 2)
     private BigDecimal hourlyRateOverride;

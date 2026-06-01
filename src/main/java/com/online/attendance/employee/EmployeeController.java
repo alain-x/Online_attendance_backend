@@ -4,11 +4,15 @@ import com.online.attendance.company.Company;
 import com.online.attendance.employee.dto.CreateEmployeeRequest;
 import com.online.attendance.employee.dto.EmployeeResponse;
 import com.online.attendance.employee.dto.UpdateEmployeeRequest;
+import com.online.attendance.employee.dto.UpdateMyProfileRequest;
 import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.user.AppUser;
 import com.online.attendance.user.Role;
 import com.online.attendance.user.UserRepository;
 import jakarta.validation.Valid;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -17,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
@@ -183,7 +188,95 @@ public class EmployeeController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/me")
+    public ResponseEntity<?> myProfile(Authentication authentication) {
+        Employee employee = requireCurrentEmployee(authentication);
+        if (employee == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Employee profile not found"));
+        }
+        return ResponseEntity.ok(toResponse(employee));
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/me")
+    public ResponseEntity<?> updateMyProfile(Authentication authentication, @Valid @RequestBody UpdateMyProfileRequest request) {
+        Employee employee = requireCurrentEmployee(authentication);
+        if (employee == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Employee profile not found"));
+        }
+        if (request.getMobile() != null) {
+            employee.setMobile(request.getMobile().trim().isBlank() ? null : request.getMobile().trim());
+        }
+        if (request.getDepartment() != null) {
+            employee.setDepartment(request.getDepartment().trim().isBlank() ? null : request.getDepartment().trim());
+        }
+        if (request.getDesignation() != null) {
+            employee.setDesignation(request.getDesignation().trim().isBlank() ? null : request.getDesignation().trim());
+        }
+        if (request.getCategory() != null) {
+            employee.setCategory(request.getCategory().trim().isBlank() ? null : request.getCategory().trim());
+        }
+        employee = employeeRepository.save(employee);
+        return ResponseEntity.ok(toResponse(employee));
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/me/profile/image")
+    public ResponseEntity<?> myProfileImage(Authentication authentication, @RequestParam(defaultValue = "false") boolean download) {
+        Employee employee = requireCurrentEmployee(authentication);
+        if (employee == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Profile image not found"));
+        }
+        return profileImageResponse(employee.getId(), download);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/{id}/profile/image")
+    public ResponseEntity<?> profileImage(
+            Authentication authentication,
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean download,
+            @RequestHeader(value = "X-Company-Id", required = false) Long companyId
+    ) {
+        Long resolvedCompanyId = currentCompanyService.requireCompanyId(authentication, companyId);
+        Employee employee = employeeRepository.findByIdAndUserCompanyId(id, resolvedCompanyId).orElse(null);
+        if (employee == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Employee not found"));
+        }
+        return profileImageResponse(id, download);
+    }
+
+    private Employee requireCurrentEmployee(Authentication authentication) {
+        String username = currentCompanyService.requireUsername(authentication);
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        return employeeRepository.findByUserUsernameAndUserCompanyId(username, companyId).orElse(null);
+    }
+
+    private ResponseEntity<?> profileImageResponse(Long employeeId, boolean download) {
+        Optional<EmployeeRepository.ProfileImageView> viewOpt = employeeRepository.findProfileImageById(employeeId)
+                .filter(view -> view.getProfileImageBytes() != null && view.getProfileImageBytes().length > 0);
+        if (viewOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("message", "Profile image not found"));
+        }
+        EmployeeRepository.ProfileImageView view = viewOpt.get();
+        String contentType = view.getProfileImageContentType();
+        if (contentType == null || contentType.isBlank()) {
+            contentType = MediaType.IMAGE_JPEG_VALUE;
+        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType(contentType));
+        headers.setCacheControl("public, max-age=86400");
+        if (download) {
+            headers.setContentDisposition(
+                    ContentDisposition.attachment().filename("profile-" + employeeId + ".jpg").build()
+            );
+        }
+        return ResponseEntity.ok().headers(headers).body(view.getProfileImageBytes());
+    }
+
     private EmployeeResponse toResponse(Employee employee) {
+        String profileUrl = resolveProfileImageUrl(employee);
         return new EmployeeResponse(
                 employee.getId(),
                 employee.getEmployeeCode(),
@@ -193,11 +286,27 @@ public class EmployeeController {
                 employee.getMobile(),
                 employee.getDesignation(),
                 employee.getCategory(),
-                employee.getProfileImageUrl(),
+                profileUrl,
                 employee.getUser().getUsername(),
                 employee.getUser().getEmail(),
                 employee.getUser().getRole().name(),
                 employee.getHourlyRateOverride()
         );
+    }
+
+    private String resolveProfileImageUrl(Employee employee) {
+        if (employee == null || employee.getId() == null) {
+            return null;
+        }
+        return employeeRepository.findProfileImageById(employee.getId())
+                .filter(view -> view.getProfileImageBytes() != null && view.getProfileImageBytes().length > 0)
+                .map(view -> EmployeeProfileImageService.profileImageApiUrl(employee.getId()))
+                .orElseGet(() -> {
+                    String url = employee.getProfileImageUrl();
+                    if (url != null && (url.startsWith("/uploads/") || url.startsWith("uploads/"))) {
+                        return EmployeeProfileImageService.profileImageApiUrl(employee.getId());
+                    }
+                    return url;
+                });
     }
 }

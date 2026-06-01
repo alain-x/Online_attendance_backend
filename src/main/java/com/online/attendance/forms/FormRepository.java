@@ -13,6 +13,8 @@ public interface FormRepository extends JpaRepository<Form, Long> {
     @EntityGraph(attributePaths = {"company"})
     Optional<Form> findByIdAndCompany_Id(Long id, Long companyId);
 
-    @EntityGraph(attributePaths = {"company"})
     Optional<Form> findByPublicToken(String publicToken);
+
+    @org.springframework.data.jpa.repository.Query("SELECT f.company.id FROM Form f WHERE f.id = :id")
+    Optional<Long> findCompanyIdById(@org.springframework.data.repository.query.Param("id") Long id);
 }
