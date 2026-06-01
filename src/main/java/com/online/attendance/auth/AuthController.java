@@ -153,8 +153,10 @@ public class AuthController {
         }
         return companyRepository.findLogoViewById(companyId)
                 .filter(view -> view.getLogoBytes() != null && view.getLogoBytes().length > 0)
-                .map(view -> "/api/companies/" + companyId + "/logo/image")
-                .orElse(null);
+                .map(view -> com.online.attendance.company.CompanyLogoUrls.apiImagePath(companyId))
+                .orElseGet(() -> companyRepository.findResponseById(companyId)
+                        .map(com.online.attendance.company.dto.CompanyResponse::logoUrl)
+                        .orElse(null));
     }
 
     private String resolveProfileImageUrl(Employee employee) {

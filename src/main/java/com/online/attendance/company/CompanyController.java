@@ -28,9 +28,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/companies")
@@ -61,18 +64,39 @@ public class CompanyController {
             return List.of();
         }
         if (ctx.role() == Role.SYSTEM_ADMIN) {
-            return companyRepository.findAllResponses();
+            return enrichLogoUrls(companyRepository.findAllResponses());
         }
 
         Long companyId = ctx.companyId();
         if (ctx.parentCompanyId() != null) {
-            return companyRepository.findResponseById(companyId).map(List::of).orElse(List.of());
+            return enrichLogoUrls(companyRepository.findResponseById(companyId).map(List::of).orElse(List.of()));
         }
 
         List<CompanyResponse> result = new ArrayList<>();
         companyRepository.findResponseById(companyId).ifPresent(result::add);
         result.addAll(companyRepository.findBranchResponsesByParentId(companyId));
-        return result;
+        return enrichLogoUrls(result);
+    }
+
+    private List<CompanyResponse> enrichLogoUrls(List<CompanyResponse> companies) {
+        if (companies == null || companies.isEmpty()) {
+            return companies;
+        }
+        Set<Long> withLogo = new HashSet<>(companyRepository.findIdsWithLogoBytes());
+        return companies.stream().map(c -> {
+            if (withLogo.contains(c.id())) {
+                return new CompanyResponse(
+                        c.id(),
+                        c.name(),
+                        c.slug(),
+                        CompanyLogoUrls.apiImagePath(c.id()),
+                        c.hourlyRateDefault(),
+                        c.active(),
+                        c.parentCompanyId()
+                );
+            }
+            return c;
+        }).collect(Collectors.toList());
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
@@ -115,9 +139,13 @@ public class CompanyController {
         }
         if (request.getLogoUrl() != null) {
             String v = request.getLogoUrl().trim();
-            company.setLogoUrl(v.isBlank() ? null : v);
-            company.setLogoBytes(null);
-            company.setLogoContentType(null);
+            if (v.isBlank()) {
+                company.setLogoUrl(null);
+                company.setLogoBytes(null);
+                company.setLogoContentType(null);
+            } else {
+                company.setLogoUrl(CompanyLogoUrls.normalizeStoredUrl(v, company.getId()));
+            }
         }
         if (request.getHourlyRateDefault() != null) {
             company.setHourlyRateDefault(request.getHourlyRateDefault());
@@ -301,7 +329,7 @@ public class CompanyController {
 
         company.setLogoBytes(file.getBytes());
         company.setLogoContentType(file.getContentType());
-        company.setLogoUrl("/api/companies/" + company.getId() + "/logo/image");
+        company.setLogoUrl(CompanyLogoUrls.apiImagePath(company.getId()));
         companyRepository.save(company);
         return companyRepository.findResponseById(id)
                 .map(ResponseEntity::ok)

@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface CompanyRepository extends JpaRepository<Company, Long> {
@@ -42,4 +43,7 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     @Query("SELECT c.logoBytes AS logoBytes, c.logoContentType AS logoContentType FROM Company c WHERE c.id = :id")
     Optional<CompanyLogoView> findLogoViewById(@Param("id") Long id);
+
+    @Query("SELECT c.id FROM Company c WHERE c.logoBytes IS NOT NULL")
+    List<Long> findIdsWithLogoBytes();
 }

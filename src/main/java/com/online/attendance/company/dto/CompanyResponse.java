@@ -1,6 +1,7 @@
 package com.online.attendance.company.dto;
 
 import com.online.attendance.company.Company;
+import com.online.attendance.company.CompanyLogoUrls;
 
 import java.math.BigDecimal;
 
@@ -30,12 +31,6 @@ public record CompanyResponse(
     }
 
     private static String normalizeLogoUrl(String logoUrl, Long companyId) {
-        if (logoUrl != null && logoUrl.matches("/api/companies/\\d+/logo$")) {
-            return logoUrl + "/image";
-        }
-        if (logoUrl != null && (logoUrl.startsWith("/uploads/") || logoUrl.startsWith("uploads/"))) {
-            return companyId != null ? "/api/companies/" + companyId + "/logo/image" : null;
-        }
-        return logoUrl;
+        return CompanyLogoUrls.normalizeResponseUrl(logoUrl, companyId);
     }
 }
