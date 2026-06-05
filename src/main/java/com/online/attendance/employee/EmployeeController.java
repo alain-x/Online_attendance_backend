@@ -244,7 +244,7 @@ public class EmployeeController {
     @Transactional
     @PutMapping(value = "/me/profile/image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     @PostMapping(value = "/me/profile/image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> updateMyProfileImage(Authentication authentication, @RequestPart("image") org.springframework.web.multipart.MultipartFile image) {
+    public ResponseEntity<?> updateMyProfileImage(Authentication authentication, @RequestParam("image") org.springframework.web.multipart.MultipartFile image) {
         Employee employee = requireCurrentEmployee(authentication);
         if (employee == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Employee profile not found"));
@@ -260,6 +260,7 @@ public class EmployeeController {
                     "profileImageUrl", EmployeeProfileImageService.profileImageApiUrl(employee.getId())
             ));
         } catch (Exception ex) {
+            log.error("Failed to save profile image for employee {}: {}", employee.getId(), ex.getMessage(), ex);
             return ResponseEntity.status(500).body(Map.of("message", "Failed to save profile image: " + ex.getMessage()));
         }
     }
