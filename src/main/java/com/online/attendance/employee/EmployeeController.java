@@ -242,7 +242,6 @@ public class EmployeeController {
 
     @PreAuthorize("isAuthenticated()")
     @Transactional
-    @PutMapping(value = "/me/profile/image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     @PostMapping(value = "/me/profile/image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> updateMyProfileImage(Authentication authentication, @RequestParam("image") org.springframework.web.multipart.MultipartFile image) {
         Employee employee = requireCurrentEmployee(authentication);
