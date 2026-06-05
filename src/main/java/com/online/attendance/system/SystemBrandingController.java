@@ -4,11 +4,14 @@ import com.online.attendance.system.dto.SystemBrandingResponse;
 import com.online.attendance.system.dto.UpdateSystemBrandingRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -19,6 +22,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/system")
 public class SystemBrandingController {
+
+    private static final Logger log = LoggerFactory.getLogger(SystemBrandingController.class);
 
     private static final String BRANDING_ID = "SYSTEM";
     private static final String LOGO_API_URL = "/api/system/logo/image";
@@ -93,6 +98,7 @@ public class SystemBrandingController {
         return ResponseEntity.ok(body);
     }
 
+    @Transactional(readOnly = true)
     @GetMapping("/logo/image")
     public ResponseEntity<?> getLogoImage() {
         var view = brandingRepository.findLogoViewById(BRANDING_ID).orElse(null);
@@ -111,6 +117,7 @@ public class SystemBrandingController {
         return ResponseEntity.ok(body);
     }
 
+    @Transactional(readOnly = true)
     @GetMapping("/favicon/image")
     public ResponseEntity<?> getFaviconImage() {
         var view = brandingRepository.findFaviconViewById(BRANDING_ID).orElse(null);
@@ -121,6 +128,7 @@ public class SystemBrandingController {
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @Transactional
     @PostMapping(value = "/favicon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadFavicon(@RequestPart("file") @NotNull MultipartFile file) throws IOException {
         if (file.isEmpty()) {
@@ -150,6 +158,7 @@ public class SystemBrandingController {
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @Transactional
     @PostMapping(value = "/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadLogo(@RequestPart("file") @NotNull MultipartFile file) throws IOException {
         if (file.isEmpty()) {

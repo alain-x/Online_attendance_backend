@@ -10,6 +10,8 @@ import com.online.attendance.user.AppUser;
 import com.online.attendance.user.Role;
 import com.online.attendance.user.UserRepository;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -17,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,6 +30,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/employees")
 public class EmployeeController {
+
+    private static final Logger log = LoggerFactory.getLogger(EmployeeController.class);
 
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
@@ -226,6 +231,7 @@ public class EmployeeController {
     }
 
     @PreAuthorize("isAuthenticated()")
+    @Transactional(readOnly = true)
     @GetMapping("/me/profile/image")
     public ResponseEntity<?> myProfileImage(Authentication authentication, @RequestParam(defaultValue = "false") boolean download) {
         Employee employee = requireCurrentEmployee(authentication);
@@ -236,6 +242,7 @@ public class EmployeeController {
     }
 
     @PreAuthorize("isAuthenticated()")
+    @Transactional
     @PutMapping(value = "/me/profile/image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> updateMyProfileImage(Authentication authentication, org.springframework.web.multipart.MultipartFile image) {
         Employee employee = requireCurrentEmployee(authentication);
@@ -283,6 +290,7 @@ public class EmployeeController {
     }
 
     @PreAuthorize("isAuthenticated()")
+    @Transactional(readOnly = true)
     @GetMapping("/{id}/profile/image")
     public ResponseEntity<?> profileImage(
             Authentication authentication,
@@ -305,25 +313,30 @@ public class EmployeeController {
     }
 
     private ResponseEntity<?> profileImageResponse(Long employeeId, boolean download) {
-        Optional<EmployeeRepository.ProfileImageView> viewOpt = employeeRepository.findProfileImageById(employeeId)
-                .filter(view -> view.getProfileImageBytes() != null && view.getProfileImageBytes().length > 0);
-        if (viewOpt.isEmpty()) {
-            return ResponseEntity.status(404).body(Map.of("message", "Profile image not found"));
+        try {
+            Optional<EmployeeRepository.ProfileImageView> viewOpt = employeeRepository.findProfileImageById(employeeId)
+                    .filter(view -> view.getProfileImageBytes() != null && view.getProfileImageBytes().length > 0);
+            if (viewOpt.isEmpty()) {
+                return ResponseEntity.status(404).body(Map.of("message", "Profile image not found"));
+            }
+            EmployeeRepository.ProfileImageView view = viewOpt.get();
+            String contentType = view.getProfileImageContentType();
+            if (contentType == null || contentType.isBlank()) {
+                contentType = MediaType.IMAGE_JPEG_VALUE;
+            }
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(contentType));
+            headers.setCacheControl("public, max-age=86400");
+            if (download) {
+                headers.setContentDisposition(
+                        ContentDisposition.attachment().filename("profile-" + employeeId + ".jpg").build()
+                );
+            }
+            return ResponseEntity.ok().headers(headers).body(view.getProfileImageBytes());
+        } catch (Exception ex) {
+            log.error("Error serving profile image for employee {}: {}", employeeId, ex.getMessage(), ex);
+            return ResponseEntity.status(500).body(Map.of("message", "Failed to serve profile image"));
         }
-        EmployeeRepository.ProfileImageView view = viewOpt.get();
-        String contentType = view.getProfileImageContentType();
-        if (contentType == null || contentType.isBlank()) {
-            contentType = MediaType.IMAGE_JPEG_VALUE;
-        }
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.parseMediaType(contentType));
-        headers.setCacheControl("public, max-age=86400");
-        if (download) {
-            headers.setContentDisposition(
-                    ContentDisposition.attachment().filename("profile-" + employeeId + ".jpg").build()
-            );
-        }
-        return ResponseEntity.ok().headers(headers).body(view.getProfileImageBytes());
     }
 
     private EmployeeResponse toResponse(Employee employee) {

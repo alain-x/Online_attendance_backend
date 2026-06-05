@@ -9,35 +9,36 @@ import com.online.attendance.user.AppUser;
 import com.online.attendance.user.Role;
 import com.online.attendance.user.UserRepository;
 import com.online.attendance.user.dto.UserCompanyContext;
+import com.online.attendance.billing.CompanySubscription;
+import com.online.attendance.billing.CompanySubscriptionRepository;
+import com.online.attendance.billing.SubscriptionStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import com.online.attendance.billing.CompanySubscription;
-import com.online.attendance.billing.CompanySubscriptionRepository;
-import com.online.attendance.billing.SubscriptionStatus;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/companies")
 public class CompanyController {
+
+    private static final Logger log = LoggerFactory.getLogger(CompanyController.class);
 
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
@@ -310,6 +311,7 @@ public class CompanyController {
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @Transactional
     @PostMapping(value = "/{id}/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadLogo(Authentication authentication, @PathVariable Long id, @RequestPart("file") @NotNull MultipartFile file) throws IOException {
         CompanyResponse summary = companyRepository.findResponseById(id).orElse(null);
@@ -337,11 +339,13 @@ public class CompanyController {
     }
 
     /** Backward-compatible alias when logoUrl omits /image */
+    @Transactional(readOnly = true)
     @GetMapping("/{id}/logo")
     public ResponseEntity<?> getLogo(@PathVariable Long id) {
         return getLogoImage(id);
     }
 
+    @Transactional(readOnly = true)
     @GetMapping("/{id}/logo/image")
     public ResponseEntity<?> getLogoImage(@PathVariable Long id) {
         try {
@@ -352,11 +356,13 @@ public class CompanyController {
                         String contentType = (ct != null && !ct.isBlank()) ? ct : MediaType.APPLICATION_OCTET_STREAM_VALUE;
                         HttpHeaders headers = new HttpHeaders();
                         headers.setContentType(MediaType.parseMediaType(contentType));
+                        headers.setCacheControl("public, max-age=86400");
                         return ResponseEntity.ok().headers(headers).body(view.getLogoBytes());
                     })
                     .orElse(ResponseEntity.notFound().build());
-        } catch (RuntimeException ex) {
-            return ResponseEntity.notFound().build();
+        } catch (Exception ex) {
+            log.error("Error serving logo for company {}: {}", id, ex.getMessage(), ex);
+            return ResponseEntity.status(500).body(Map.of("message", "Failed to serve logo image"));
         }
     }
 }

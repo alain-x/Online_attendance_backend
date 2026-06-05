@@ -46,6 +46,24 @@ public class PostgresBinaryColumnMigrator implements CommandLineRunner {
 
     private void migrateColumn(String table, String column) {
         try {
+            String dataType = jdbcTemplate.queryForObject(
+                    "SELECT data_type FROM information_schema.columns WHERE table_name = ? AND column_name = ?",
+                    String.class, table, column
+            );
+            if ("bytea".equalsIgnoreCase(dataType)) {
+                return;
+            }
+            if ("oid".equalsIgnoreCase(dataType)) {
+                try {
+                    jdbcTemplate.execute(
+                            "ALTER TABLE " + table + " ALTER COLUMN " + column + " TYPE BYTEA USING lo_get(" + column + "::oid)"
+                    );
+                    log.info("Migrated {}.{} from OID to BYTEA with data preserved", table, column);
+                    return;
+                } catch (Exception ex) {
+                    log.warn("lo_get migration failed for {}.{}: {} - falling back to USING NULL", table, column, ex.getMessage());
+                }
+            }
             jdbcTemplate.execute(
                     "ALTER TABLE " + table + " ALTER COLUMN " + column + " TYPE BYTEA USING NULL"
             );
