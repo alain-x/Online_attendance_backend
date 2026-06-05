@@ -5,6 +5,7 @@ import com.online.attendance.company.Company;
 import com.online.attendance.employee.Employee;
 import com.online.attendance.employee.EmployeeProfileImageService;
 import com.online.attendance.employee.EmployeeRepository;
+import com.online.attendance.employee.dto.EmployeeResponse;
 import com.online.attendance.security.CurrentCompanyService;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.MediaType;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/face")
@@ -86,7 +88,7 @@ public class FaceController {
             } catch (Exception ignored) {
             }
         }
-        employeeRepository.save(employee);
+        employee = employeeRepository.save(employee);
 
         auditService.log(
                 company.getId(),
@@ -97,7 +99,8 @@ public class FaceController {
                 null
         );
 
-        return ResponseEntity.ok(Map.of("message", "Face enrolled"));
+        // Return updated employee profile with image URL
+        return ResponseEntity.ok(toEmployeeResponse(employee));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','RECORDER')")
@@ -142,7 +145,7 @@ public class FaceController {
             } catch (Exception ignored) {
             }
         }
-        employeeRepository.save(employee);
+        employee = employeeRepository.save(employee);
 
         auditService.log(
                 company.getId(),
@@ -153,7 +156,45 @@ public class FaceController {
                 null
         );
 
-        return ResponseEntity.ok(Map.of("message", "Face enrolled"));
+        // Return updated employee profile with image URL
+        return ResponseEntity.ok(toEmployeeResponse(employee));
+    }
+
+    private EmployeeResponse toEmployeeResponse(Employee employee) {
+        String profileUrl = resolveProfileImageUrl(employee);
+        boolean faceEnrolled = employee.getFaceDescriptor() != null && !employee.getFaceDescriptor().isBlank();
+        return new EmployeeResponse(
+                employee.getId(),
+                employee.getEmployeeCode(),
+                employee.getFirstName(),
+                employee.getLastName(),
+                employee.getDepartment(),
+                employee.getMobile(),
+                employee.getDesignation(),
+                employee.getCategory(),
+                profileUrl,
+                employee.getUser().getUsername(),
+                employee.getUser().getEmail(),
+                employee.getUser().getRole().name(),
+                faceEnrolled,
+                employee.getHourlyRateOverride()
+        );
+    }
+
+    private String resolveProfileImageUrl(Employee employee) {
+        if (employee == null || employee.getId() == null) {
+            return null;
+        }
+        return employeeRepository.findProfileImageById(employee.getId())
+                .filter(view -> view.getProfileImageBytes() != null && view.getProfileImageBytes().length > 0)
+                .map(view -> EmployeeProfileImageService.profileImageApiUrl(employee.getId()))
+                .orElseGet(() -> {
+                    String url = employee.getProfileImageUrl();
+                    if (url != null && (url.startsWith("/uploads/") || url.startsWith("uploads/"))) {
+                        return EmployeeProfileImageService.profileImageApiUrl(employee.getId());
+                    }
+                    return url;
+                });
     }
 
 }
