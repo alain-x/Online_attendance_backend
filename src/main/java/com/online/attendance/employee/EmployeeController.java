@@ -340,6 +340,7 @@ public class EmployeeController {
 
     private EmployeeResponse toResponse(Employee employee) {
         String profileUrl = resolveProfileImageUrl(employee);
+        boolean faceEnrolled = employee.getFaceDescriptor() != null && !employee.getFaceDescriptor().isBlank();
         return new EmployeeResponse(
                 employee.getId(),
                 employee.getEmployeeCode(),
@@ -353,6 +354,7 @@ public class EmployeeController {
                 employee.getUser().getUsername(),
                 employee.getUser().getEmail(),
                 employee.getUser().getRole().name(),
+                faceEnrolled,
                 employee.getHourlyRateOverride()
         );
     }

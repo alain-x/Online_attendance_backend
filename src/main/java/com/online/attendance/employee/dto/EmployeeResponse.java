@@ -20,6 +20,7 @@ public class EmployeeResponse {
     private String username;
     private String email;
     private String role;
+    private boolean faceEnrolled;
 
     private BigDecimal hourlyRateOverride;
 }
