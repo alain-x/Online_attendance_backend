@@ -230,7 +230,6 @@ public class EmployeeController {
         return ResponseEntity.ok(toResponse(employee));
     }
 
-    @PreAuthorize("isAuthenticated()")
     @Transactional(readOnly = true)
     @GetMapping("/me/profile/image")
     public ResponseEntity<?> myProfileImage(Authentication authentication, @RequestParam(defaultValue = "false") boolean download) {
@@ -290,7 +289,6 @@ public class EmployeeController {
         return ResponseEntity.ok(Map.of("profileImageUrl", EmployeeProfileImageService.profileImageApiUrl(employee.getId())));
     }
 
-    @PreAuthorize("isAuthenticated()")
     @Transactional(readOnly = true)
     @GetMapping("/{id}/profile/image")
     public ResponseEntity<?> profileImage(
