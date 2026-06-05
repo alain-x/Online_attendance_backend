@@ -245,7 +245,7 @@ public class EmployeeController {
     @Transactional
     @PutMapping(value = "/me/profile/image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     @PostMapping(value = "/me/profile/image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> updateMyProfileImage(Authentication authentication, org.springframework.web.multipart.MultipartFile image) {
+    public ResponseEntity<?> updateMyProfileImage(Authentication authentication, @RequestPart("image") org.springframework.web.multipart.MultipartFile image) {
         Employee employee = requireCurrentEmployee(authentication);
         if (employee == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Employee profile not found"));
