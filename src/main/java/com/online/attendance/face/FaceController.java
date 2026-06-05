@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -49,6 +50,7 @@ public class FaceController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','EMPLOYEE', 'ADMIN')")
     @PostMapping(value = "/enroll", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Transactional
     public ResponseEntity<?> enroll(
             Authentication authentication,
             @RequestPart(value = "image", required = false) MultipartFile image,
@@ -105,6 +107,7 @@ public class FaceController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','RECORDER')")
     @PostMapping(value = "/enroll/{employeeId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Transactional
     public ResponseEntity<?> enrollForEmployee(
             Authentication authentication,
             @PathVariable("employeeId") Long employeeId,
