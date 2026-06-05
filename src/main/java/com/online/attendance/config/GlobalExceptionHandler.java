@@ -36,9 +36,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException ex) {
-        // Used by CurrentCompanyService for missing/invalid authentication principal
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                 Map.of("message", "Unauthorized")
+        );
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                Map.of("message", ex.getMessage() != null ? ex.getMessage() : "Bad request")
         );
     }
 

@@ -75,6 +75,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/system/branding").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/companies/*/logo/image").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/companies/*/logo").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/employees/*/profile/image").permitAll()
                         .requestMatchers("/api/pesapal/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/companies/register").permitAll()

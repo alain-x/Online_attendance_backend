@@ -57,8 +57,9 @@ public class UserController {
 
         Role role;
         try {
-            role = Role.valueOf(request.getRole());
-        } catch (Exception ex) {
+            role = Role.fromString(request.getRole())
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid role"));
+        } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", "Invalid role"));
         }
 
@@ -83,7 +84,7 @@ public class UserController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PatchMapping("/{id}")
-    public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @RequestBody UpdateUserRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
+    public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @Valid @RequestBody UpdateUserRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
 
         AppUser user = userRepository.findByIdAndCompanyId(id, company.getId()).orElse(null);
@@ -94,8 +95,9 @@ public class UserController {
         if (request.getRole() != null && !request.getRole().isBlank()) {
             Role role;
             try {
-                role = Role.valueOf(request.getRole());
-            } catch (Exception ex) {
+                role = Role.fromString(request.getRole())
+                        .orElseThrow(() -> new IllegalArgumentException("Invalid role"));
+            } catch (IllegalArgumentException ex) {
                 return ResponseEntity.badRequest().body(Map.of("message", "Invalid role"));
             }
             user.setRole(role);

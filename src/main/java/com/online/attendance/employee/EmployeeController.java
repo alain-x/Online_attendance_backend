@@ -32,12 +32,14 @@ public class EmployeeController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentCompanyService currentCompanyService;
+    private final EmployeeProfileImageService employeeProfileImageService;
 
-    public EmployeeController(EmployeeRepository employeeRepository, UserRepository userRepository, PasswordEncoder passwordEncoder, CurrentCompanyService currentCompanyService) {
+    public EmployeeController(EmployeeRepository employeeRepository, UserRepository userRepository, PasswordEncoder passwordEncoder, CurrentCompanyService currentCompanyService, EmployeeProfileImageService employeeProfileImageService) {
         this.employeeRepository = employeeRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentCompanyService = currentCompanyService;
+        this.employeeProfileImageService = employeeProfileImageService;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','HR')")
@@ -56,8 +58,9 @@ public class EmployeeController {
 
         Role role;
         try {
-            role = Role.valueOf(request.getRole());
-        } catch (Exception ex) {
+            role = Role.fromString(request.getRole())
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid role"));
+        } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", "Invalid role"));
         }
 
@@ -156,8 +159,9 @@ public class EmployeeController {
 
         if (request.getRole() != null && !request.getRole().isBlank()) {
             try {
-                user.setRole(Role.valueOf(request.getRole()));
-            } catch (Exception ex) {
+                user.setRole(Role.fromString(request.getRole())
+                        .orElseThrow(() -> new IllegalArgumentException("Invalid role")));
+            } catch (IllegalArgumentException ex) {
                 return ResponseEntity.badRequest().body(Map.of("message", "Invalid role"));
             }
         }
@@ -229,6 +233,53 @@ public class EmployeeController {
             return ResponseEntity.status(404).body(Map.of("message", "Profile image not found"));
         }
         return profileImageResponse(employee.getId(), download);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping(value = "/me/profile/image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> updateMyProfileImage(Authentication authentication, org.springframework.web.multipart.MultipartFile image) {
+        Employee employee = requireCurrentEmployee(authentication);
+        if (employee == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Employee profile not found"));
+        }
+        if (image == null || image.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Image file is required"));
+        }
+        try {
+            employeeProfileImageService.saveProfileImage(employee, image);
+            employeeRepository.save(employee);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Profile image updated",
+                    "profileImageUrl", EmployeeProfileImageService.profileImageApiUrl(employee.getId())
+            ));
+        } catch (Exception ex) {
+            return ResponseEntity.status(500).body(Map.of("message", "Failed to save profile image: " + ex.getMessage()));
+        }
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @DeleteMapping("/me/profile/image")
+    public ResponseEntity<?> deleteMyProfileImage(Authentication authentication) {
+        Employee employee = requireCurrentEmployee(authentication);
+        if (employee == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Employee profile not found"));
+        }
+        employee.setProfileImageBytes(null);
+        employee.setProfileImageContentType(null);
+        employee.setProfileImagePath(null);
+        employee.setProfileImageUrl(null);
+        employeeRepository.save(employee);
+        return ResponseEntity.ok(Map.of("message", "Profile image removed"));
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/me/profile/image-url")
+    public ResponseEntity<?> myProfileImageUrl(Authentication authentication) {
+        Employee employee = requireCurrentEmployee(authentication);
+        if (employee == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Employee profile not found"));
+        }
+        return ResponseEntity.ok(Map.of("profileImageUrl", EmployeeProfileImageService.profileImageApiUrl(employee.getId())));
     }
 
     @PreAuthorize("isAuthenticated()")
