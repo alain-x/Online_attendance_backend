@@ -1,7 +1,8 @@
 package com.online.attendance.sports.sport;
 
+import com.online.attendance.sports.sport.dto.CreateSportRequest;
 import com.online.attendance.sports.sport.dto.SportResponse;
-import jakarta.validation.Valid;
+import com.online.attendance.sports.sport.dto.UpdateSportRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -43,25 +44,29 @@ public class SportController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
     @PostMapping
-    public ResponseEntity<?> create(@Valid @RequestBody Sport sport) {
-        if (sport.getName() == null || sport.getName().isBlank()) {
+    public ResponseEntity<?> create(@RequestBody CreateSportRequest req) {
+        if (req.getName() == null || req.getName().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Name is required"));
         }
+        Sport sport = Sport.builder()
+                .name(req.getName().trim())
+                .description(req.getDescription())
+                .build();
         Sport saved = sportRepository.save(sport);
         return ResponseEntity.ok(SportResponse.from(saved));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody Sport updated) {
+    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody UpdateSportRequest req) {
         var existing = sportRepository.findById(id);
         if (existing.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Sport not found"));
         }
         var sport = existing.get();
-        sport.setName(updated.getName());
-        sport.setDescription(updated.getDescription());
-        sport.setActive(updated.isActive());
+        sport.setName(req.getName().trim());
+        sport.setDescription(req.getDescription());
+        sport.setActive(req.isActive());
         return ResponseEntity.ok(SportResponse.from(sportRepository.save(sport)));
     }
 
