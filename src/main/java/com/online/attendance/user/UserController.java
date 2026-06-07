@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
+@Transactional(readOnly = true)
 public class UserController {
 
     private final UserRepository userRepository;
@@ -43,6 +45,7 @@ public class UserController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','CLUB_ADMIN')")
     @PostMapping
+    @Transactional
     public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateUserRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
         String requestedUsername = request.getUsername() != null ? request.getUsername().trim() : "";
@@ -84,6 +87,7 @@ public class UserController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','CLUB_ADMIN')")
     @PatchMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @Valid @RequestBody UpdateUserRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
 
@@ -128,6 +132,7 @@ public class UserController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','CLUB_ADMIN')")
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
 

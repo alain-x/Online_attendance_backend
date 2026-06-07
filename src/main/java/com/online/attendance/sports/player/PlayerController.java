@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sports/players")
+@Transactional(readOnly = true)
 public class PlayerController {
 
     private static final Logger log = LoggerFactory.getLogger(PlayerController.class);
@@ -74,6 +76,7 @@ public class PlayerController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
+    @Transactional
     public ResponseEntity<?> create(@Valid @RequestBody CreatePlayerRequest request) {
         AppUser user = userRepository.findById(request.getUserId()).orElse(null);
         if (user == null) {
@@ -105,6 +108,7 @@ public class PlayerController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreatePlayerRequest request) {
         var existing = playerProfileRepository.findById(id);
         if (existing.isEmpty()) {
@@ -127,6 +131,7 @@ public class PlayerController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!playerProfileRepository.existsById(id)) {
             return ResponseEntity.status(404).body(Map.of("message", "Player not found"));
