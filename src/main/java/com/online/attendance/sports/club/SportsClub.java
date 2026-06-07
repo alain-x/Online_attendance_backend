@@ -1,0 +1,43 @@
+package com.online.attendance.sports.club;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "sports_clubs")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class SportsClub {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, length = 200)
+    private String name;
+
+    @Column(nullable = false, length = 100, unique = true)
+    private String slug;
+
+    @Column(name = "logo_url", length = 500)
+    private String logoUrl;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "contact_email", length = 200)
+    private String contactEmail;
+
+    @Column(name = "contact_phone", length = 50)
+    private String contactPhone;
+
+    @Column(columnDefinition = "TEXT")
+    private String address;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean active = true;
+}

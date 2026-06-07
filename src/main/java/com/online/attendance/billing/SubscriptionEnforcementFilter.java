@@ -35,6 +35,7 @@ public class SubscriptionEnforcementFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/pesapal/")) return true;
         if (path.startsWith("/api/system/")) return true;
         if (path.startsWith("/api/public/")) return true;
+        if (path.startsWith("/api/sports/")) return true;
         if (path.startsWith("/uploads/")) return true;
         if (path.startsWith("/actuator/")) return true;
         if ("/".equals(path) || "/error".equals(path)) return true;

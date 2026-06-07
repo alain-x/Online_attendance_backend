@@ -99,7 +99,13 @@ public class SecurityConfig {
                         "ROLE_ADMIN > ROLE_EMPLOYEE\n" +
                         "ROLE_HR > ROLE_EMPLOYEE\n" +
                         "ROLE_MANAGER > ROLE_EMPLOYEE\n" +
-                        "ROLE_RECORDER > ROLE_EMPLOYEE"
+                        "ROLE_RECORDER > ROLE_EMPLOYEE\n" +
+                        "ROLE_SYSTEM_ADMIN > ROLE_CLUB_ADMIN\n" +
+                        "ROLE_CLUB_ADMIN > ROLE_COACH\n" +
+                        "ROLE_CLUB_ADMIN > ROLE_TEAM_MANAGER\n" +
+                        "ROLE_CLUB_ADMIN > ROLE_PLAYER\n" +
+                        "ROLE_COACH > ROLE_PLAYER\n" +
+                        "ROLE_TEAM_MANAGER > ROLE_PLAYER"
         );
     }
 

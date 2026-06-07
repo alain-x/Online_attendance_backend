@@ -10,7 +10,12 @@ public enum Role {
     RECORDER,
     EMPLOYEE,
     PAYROLL,
-    AUDITOR;
+    AUDITOR,
+    CLUB_ADMIN,
+    COACH,
+    TEAM_MANAGER,
+    PLAYER,
+    PARENT;
 
     public static Optional<Role> fromString(String value) {
         if (value == null || value.isBlank()) {
