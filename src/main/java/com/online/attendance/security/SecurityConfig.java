@@ -100,6 +100,7 @@ public class SecurityConfig {
                         "ROLE_HR > ROLE_EMPLOYEE\n" +
                         "ROLE_MANAGER > ROLE_EMPLOYEE\n" +
                         "ROLE_RECORDER > ROLE_EMPLOYEE\n" +
+                        "ROLE_ADMIN > ROLE_CLUB_ADMIN\n" +
                         "ROLE_SYSTEM_ADMIN > ROLE_CLUB_ADMIN\n" +
                         "ROLE_CLUB_ADMIN > ROLE_COACH\n" +
                         "ROLE_CLUB_ADMIN > ROLE_TEAM_MANAGER\n" +
