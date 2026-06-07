@@ -5,6 +5,7 @@ import com.online.attendance.sports.team.Team;
 import com.online.attendance.sports.team.TeamRepository;
 import com.online.attendance.user.AppUser;
 import com.online.attendance.user.UserRepository;
+import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sports/chat")
+@Transactional
 public class ChatController {
 
     private static final Logger log = LoggerFactory.getLogger(ChatController.class);
