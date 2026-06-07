@@ -10,9 +10,15 @@ public record ChatRoomResponse(
         String teamName,
         String name,
         String type,
+        boolean isGroup,
         Long createdById,
         String createdByName,
-        Instant createdAt
+        Instant createdAt,
+        int participantCount,
+        Long lastMessageId,
+        String lastMessageContent,
+        String lastMessageSenderName,
+        Instant lastMessageAt
 ) {
     public static ChatRoomResponse from(ChatRoom room) {
         return new ChatRoomResponse(
@@ -21,9 +27,11 @@ public record ChatRoomResponse(
                 room.getTeam() != null ? room.getTeam().getName() : null,
                 room.getName(),
                 room.getType(),
+                room.isGroup(),
                 room.getCreatedBy() != null ? room.getCreatedBy().getId() : null,
                 room.getCreatedBy() != null ? room.getCreatedBy().getUsername() : null,
-                room.getCreatedAt()
+                room.getCreatedAt(),
+                0, null, null, null, null
         );
     }
 }

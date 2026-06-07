@@ -1,15 +1,15 @@
 package com.online.attendance.sports.messaging.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.List;
 
 @Getter
 @Setter
 public class CreateChatRoomRequest {
 
-    @NotNull
     private Long teamId;
 
     @NotBlank
@@ -17,4 +17,8 @@ public class CreateChatRoomRequest {
 
     @NotBlank
     private String type;
+
+    private boolean isGroup;
+
+    private List<Long> participantIds;
 }

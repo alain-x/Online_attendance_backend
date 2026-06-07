@@ -21,7 +21,7 @@ public class ChatRoom {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "team_id", nullable = false)
+    @JoinColumn(name = "team_id")
     private Team team;
 
     @Column(nullable = false, length = 200)
@@ -29,6 +29,10 @@ public class ChatRoom {
 
     @Column(nullable = false, length = 20)
     private String type;
+
+    @Column(name = "is_group")
+    @Builder.Default
+    private boolean isGroup = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")

@@ -12,6 +12,9 @@ public record ChatMessageResponse(
         String content,
         String messageType,
         String fileUrl,
+        String fileName,
+        Long fileSize,
+        String mimeType,
         Instant createdAt
 ) {
     public static ChatMessageResponse from(ChatMessage message) {
@@ -23,6 +26,9 @@ public record ChatMessageResponse(
                 message.getContent(),
                 message.getMessageType(),
                 message.getFileUrl(),
+                message.getFileName(),
+                message.getFileSize(),
+                message.getMimeType(),
                 message.getCreatedAt()
         );
     }

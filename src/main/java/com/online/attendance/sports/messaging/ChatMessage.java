@@ -37,6 +37,15 @@ public class ChatMessage {
     @Column(name = "file_url", length = 500)
     private String fileUrl;
 
+    @Column(name = "file_name", length = 255)
+    private String fileName;
+
+    @Column(name = "file_size")
+    private Long fileSize;
+
+    @Column(name = "mime_type", length = 100)
+    private String mimeType;
+
     @Column(name = "created_at")
     private Instant createdAt;
 }
