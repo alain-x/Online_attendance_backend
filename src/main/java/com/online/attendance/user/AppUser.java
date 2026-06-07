@@ -24,6 +24,12 @@ public class AppUser {
     @Column(nullable = false, length = 100)
     private String username;
 
+    @Column(length = 100)
+    private String firstName;
+
+    @Column(length = 100)
+    private String lastName;
+
     @Column(length = 200)
     private String email;
 

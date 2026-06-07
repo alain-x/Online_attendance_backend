@@ -65,6 +65,8 @@ public class BootstrapAdminUser implements CommandLineRunner {
         if (admin == null) {
             admin = AppUser.builder()
                     .username(adminUsername)
+                    .firstName("Admin")
+                    .lastName("User")
                     .role(Role.ADMIN)
                     .company(company)
                     .enabled(true)
@@ -80,6 +82,8 @@ public class BootstrapAdminUser implements CommandLineRunner {
         if (sys == null) {
             sys = AppUser.builder()
                     .username(systemAdminUsername)
+                    .firstName("System")
+                    .lastName("Admin")
                     .role(Role.SYSTEM_ADMIN)
                     .company(company)
                     .enabled(true)
@@ -96,6 +100,8 @@ public class BootstrapAdminUser implements CommandLineRunner {
         if (club == null) {
             club = AppUser.builder()
                     .username(clubAdminUsername)
+                    .firstName("Club")
+                    .lastName("Admin")
                     .role(Role.CLUB_ADMIN)
                     .company(company)
                     .enabled(true)

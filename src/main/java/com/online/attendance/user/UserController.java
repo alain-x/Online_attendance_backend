@@ -68,8 +68,13 @@ public class UserController {
 
         boolean enabled = request.getEnabled() == null || request.getEnabled();
 
+        String firstName = request.getFirstName() != null ? request.getFirstName().trim() : "";
+        String lastName = request.getLastName() != null ? request.getLastName().trim() : "";
+
         AppUser user = AppUser.builder()
                 .username(requestedUsername)
+                .firstName(firstName.isBlank() ? null : firstName)
+                .lastName(lastName.isBlank() ? null : lastName)
                 .email(requestedEmail)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(role)
@@ -126,6 +131,14 @@ public class UserController {
             }
         }
 
+        if (request.getFirstName() != null) {
+            user.setFirstName(request.getFirstName().trim().isBlank() ? null : request.getFirstName().trim());
+        }
+
+        if (request.getLastName() != null) {
+            user.setLastName(request.getLastName().trim().isBlank() ? null : request.getLastName().trim());
+        }
+
         user = userRepository.save(user);
         return ResponseEntity.ok(toResponse(user));
     }
@@ -155,6 +168,8 @@ public class UserController {
         return UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
                 .email(user.getEmail())
                 .role(user.getRole() != null ? user.getRole().name() : null)
                 .enabled(user.isEnabled())
