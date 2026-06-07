@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sports/teams")
+@Transactional(readOnly = true)
 public class TeamController {
 
     private static final Logger log = LoggerFactory.getLogger(TeamController.class);
@@ -73,6 +75,7 @@ public class TeamController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
+    @Transactional
     public ResponseEntity<?> create(@Valid @RequestBody CreateTeamRequest request) {
         Sport sport = sportRepository.findById(request.getSportId()).orElse(null);
         if (sport == null) {
@@ -103,6 +106,7 @@ public class TeamController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateTeamRequest request) {
         var existing = teamRepository.findById(id);
         if (existing.isEmpty()) {
@@ -133,6 +137,7 @@ public class TeamController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!teamRepository.existsById(id)) {
             return ResponseEntity.status(404).body(Map.of("message", "Team not found"));
@@ -143,6 +148,7 @@ public class TeamController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/{teamId}/members")
+    @Transactional
     public ResponseEntity<?> addMember(@PathVariable Long teamId, @Valid @RequestBody AddTeamMemberRequest request) {
         Team team = teamRepository.findById(teamId).orElse(null);
         if (team == null) {
@@ -170,6 +176,7 @@ public class TeamController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/{teamId}/members/{memberId}")
+    @Transactional
     public ResponseEntity<?> removeMember(@PathVariable Long teamId, @PathVariable Long memberId) {
         TeamMember member = teamMemberRepository.findById(memberId).orElse(null);
         if (member == null || !member.getTeam().getId().equals(teamId)) {
