@@ -2,6 +2,7 @@ package com.online.attendance.sports.player;
 
 import com.online.attendance.employee.Employee;
 import com.online.attendance.employee.EmployeeRepository;
+import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.sports.club.SportsClub;
 import com.online.attendance.sports.club.SportsClubRepository;
 import com.online.attendance.sports.player.dto.CreatePlayerRequest;
@@ -15,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,19 +36,22 @@ public class PlayerController {
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
     private final TeamMemberRepository teamMemberRepository;
+    private final CurrentCompanyService currentCompanyService;
 
     public PlayerController(PlayerProfileRepository playerProfileRepository,
                             PlayerStatisticRepository playerStatisticRepository,
                             SportsClubRepository clubRepository,
                             UserRepository userRepository,
                             EmployeeRepository employeeRepository,
-                            TeamMemberRepository teamMemberRepository) {
+                            TeamMemberRepository teamMemberRepository,
+                            CurrentCompanyService currentCompanyService) {
         this.playerProfileRepository = playerProfileRepository;
         this.playerStatisticRepository = playerStatisticRepository;
         this.clubRepository = clubRepository;
         this.userRepository = userRepository;
         this.employeeRepository = employeeRepository;
         this.teamMemberRepository = teamMemberRepository;
+        this.currentCompanyService = currentCompanyService;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
@@ -62,6 +67,22 @@ public class PlayerController {
             players = playerProfileRepository.findAll();
         }
         return players.stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @GetMapping("/me")
+    public ResponseEntity<?> getMyProfile(Authentication authentication) {
+        String username = currentCompanyService.requireUsername(authentication);
+        String companySlug = currentCompanyService.requireCompanySlug(authentication);
+        AppUser user = userRepository.findByUsernameAndCompanySlug(username, companySlug).orElse(null);
+        if (user == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "User not found"));
+        }
+        var profile = playerProfileRepository.findByUserId(user.getId());
+        if (profile.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("message", "Player profile not found for current user"));
+        }
+        return ResponseEntity.ok(toResponse(profile.get()));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
