@@ -21,9 +21,9 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/sports/analytics")
-public class AnalyticsController {
+public class SportsAnalyticsController {
 
-    private static final Logger log = LoggerFactory.getLogger(AnalyticsController.class);
+    private static final Logger log = LoggerFactory.getLogger(SportsAnalyticsController.class);
     private final PlayerProfileRepository playerProfileRepository;
     private final TeamRepository teamRepository;
     private final MatchRepository matchRepository;
@@ -33,7 +33,7 @@ public class AnalyticsController {
     private final PlayerStatisticRepository playerStatisticRepository;
     private final PlayerPaymentRepository playerPaymentRepository;
 
-    public AnalyticsController(PlayerProfileRepository playerProfileRepository,
+    public SportsAnalyticsController(PlayerProfileRepository playerProfileRepository,
                                TeamRepository teamRepository,
                                MatchRepository matchRepository,
                                MatchEventRepository matchEventRepository,
