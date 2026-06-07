@@ -132,7 +132,10 @@ public class AuthController {
         }
 
         Map<String, Object> body = new HashMap<>();
+        body.put("id", user.getId());
         body.put("username", user.getUsername());
+        body.put("firstName", user.getFirstName());
+        body.put("lastName", user.getLastName());
         body.put("role", user.getRole().name());
         body.put("companyId", user.getCompany() != null ? user.getCompany().getId() : null);
         body.put("companySlug", user.getCompany() != null ? user.getCompany().getSlug() : null);

@@ -176,6 +176,8 @@ public class PlayerController {
         String lastName = null;
         if (profile.getUser() != null) {
             email = profile.getUser().getEmail();
+            firstName = profile.getUser().getFirstName();
+            lastName = profile.getUser().getLastName();
         }
         return PlayerResponse.from(profile, email, firstName, lastName);
     }
