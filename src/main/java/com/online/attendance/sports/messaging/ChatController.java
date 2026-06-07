@@ -56,15 +56,18 @@ public class ChatController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/rooms")
-    public List<ChatRoomResponse> listRooms(Authentication authentication, @RequestParam(required = false) Long teamId) {
+    public ResponseEntity<?> listRooms(Authentication authentication, @RequestParam(required = false) Long teamId) {
         AppUser user = resolveUser(authentication);
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
+        }
         List<ChatRoom> rooms;
         if (teamId != null) {
             rooms = roomRepository.findByTeamId(teamId);
         } else {
             rooms = roomRepository.findMyRooms(user.getId());
         }
-        return rooms.stream().map(this::toRoomResponse).collect(Collectors.toList());
+        return ResponseEntity.ok(rooms.stream().map(this::toRoomResponse).collect(Collectors.toList()));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
@@ -77,6 +80,9 @@ public class ChatController {
     @PostMapping("/rooms")
     public ResponseEntity<?> createRoom(Authentication authentication, @Valid @RequestBody CreateChatRoomRequest request) {
         AppUser creator = resolveUser(authentication);
+        if (creator == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
+        }
         Team team = request.getTeamId() != null ? teamRepository.findById(request.getTeamId()).orElse(null) : null;
 
         ChatRoom newRoom = ChatRoom.builder()
@@ -120,6 +126,9 @@ public class ChatController {
             return ResponseEntity.badRequest().body(Map.of("message", "userId is required"));
         }
         AppUser current = resolveUser(authentication);
+        if (current == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
+        }
         if (current.getId().equals(targetUserId)) {
             return ResponseEntity.badRequest().body(Map.of("message", "Cannot chat with yourself"));
         }
@@ -217,6 +226,9 @@ public class ChatController {
             return ResponseEntity.status(404).body(Map.of("message", "Room not found"));
         }
         AppUser sender = resolveUser(authentication);
+        if (sender == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
+        }
         ChatMessage message = ChatMessage.builder()
                 .room(room)
                 .sender(sender)
@@ -287,10 +299,13 @@ public class ChatController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/users/search")
-    public List<Map<String, Object>> searchUsers(Authentication authentication, @RequestParam("q") String query) {
+    public ResponseEntity<?> searchUsers(Authentication authentication, @RequestParam("q") String query) {
         AppUser current = resolveUser(authentication);
+        if (current == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
+        }
         String q = query.trim().toLowerCase();
-        return userRepository.findAll().stream()
+        return ResponseEntity.ok(userRepository.findAll().stream()
                 .filter(u -> !u.getId().equals(current.getId()))
                 .filter(u -> u.getUsername().toLowerCase().contains(q)
                         || (u.getEmail() != null && u.getEmail().toLowerCase().contains(q)))
@@ -303,7 +318,7 @@ public class ChatController {
                     return m;
                 })
                 .limit(20)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
     }
 
     private ChatRoomResponse toRoomResponse(ChatRoom room) {
@@ -331,8 +346,13 @@ public class ChatController {
 
     private AppUser resolveUser(Authentication authentication) {
         String principal = authentication.getName();
-        int idx = principal != null ? principal.indexOf("::") : -1;
+        if (principal == null) return null;
+        int idx = principal.indexOf("::");
+        String companySlug = (idx > 0) ? principal.substring(0, idx) : null;
         String username = (idx > 0 && idx + 2 < principal.length()) ? principal.substring(idx + 2) : principal;
+        if (companySlug != null) {
+            return userRepository.findByUsernameAndCompanySlug(username, companySlug).orElse(null);
+        }
         return userRepository.findByUsername(username).orElse(null);
     }
 }
