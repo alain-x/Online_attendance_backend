@@ -26,6 +26,9 @@ public class BootstrapAdminUser implements CommandLineRunner {
     private final String systemAdminUsername;
     private final String systemAdminPassword;
 
+    private final String clubAdminUsername;
+    private final String clubAdminPassword;
+
     public BootstrapAdminUser(
             UserRepository userRepository,
             CompanyRepository companyRepository,
@@ -33,7 +36,9 @@ public class BootstrapAdminUser implements CommandLineRunner {
             @Value("${app.bootstrap.admin.username:admin}") String adminUsername,
             @Value("${app.bootstrap.admin.password:admin123}") String adminPassword,
             @Value("${app.bootstrap.systemadmin.username:sysadmin}") String systemAdminUsername,
-            @Value("${app.bootstrap.systemadmin.password:sysadmin123}") String systemAdminPassword
+            @Value("${app.bootstrap.systemadmin.password:sysadmin123}") String systemAdminPassword,
+            @Value("${app.bootstrap.clubadmin.username:clubadmin}") String clubAdminUsername,
+            @Value("${app.bootstrap.clubadmin.password:clubadmin123}") String clubAdminPassword
     ) {
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
@@ -42,6 +47,8 @@ public class BootstrapAdminUser implements CommandLineRunner {
         this.adminPassword = adminPassword;
         this.systemAdminUsername = systemAdminUsername;
         this.systemAdminPassword = systemAdminPassword;
+        this.clubAdminUsername = clubAdminUsername;
+        this.clubAdminPassword = clubAdminPassword;
     }
 
     @Override
@@ -83,5 +90,21 @@ public class BootstrapAdminUser implements CommandLineRunner {
         sys.setCompany(company);
         sys.setPasswordHash(passwordEncoder.encode(systemAdminPassword));
         userRepository.save(sys);
+
+        // Sports Club administrator — default user for day-to-day sports club management
+        AppUser club = userRepository.findByUsernameAndCompanySlug(clubAdminUsername, company.getSlug()).orElse(null);
+        if (club == null) {
+            club = AppUser.builder()
+                    .username(clubAdminUsername)
+                    .role(Role.CLUB_ADMIN)
+                    .company(company)
+                    .enabled(true)
+                    .build();
+        }
+        club.setEnabled(true);
+        club.setRole(Role.CLUB_ADMIN);
+        club.setCompany(company);
+        club.setPasswordHash(passwordEncoder.encode(clubAdminPassword));
+        userRepository.save(club);
     }
 }

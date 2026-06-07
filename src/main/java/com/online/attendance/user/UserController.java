@@ -34,14 +34,14 @@ public class UserController {
         this.employeeRepository = employeeRepository;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','CLUB_ADMIN')")
     @GetMapping
     public List<UserResponse> list(Authentication authentication, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
         return userRepository.findAllByCompanyId(company.getId()).stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','CLUB_ADMIN')")
     @PostMapping
     public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateUserRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -82,7 +82,7 @@ public class UserController {
         }
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','CLUB_ADMIN')")
     @PatchMapping("/{id}")
     public ResponseEntity<?> update(Authentication authentication, @PathVariable Long id, @Valid @RequestBody UpdateUserRequest request, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
@@ -126,7 +126,7 @@ public class UserController {
         return ResponseEntity.ok(toResponse(user));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','CLUB_ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id, @RequestHeader(value = "X-Company-Id", required = false) Long companyId) {
         Company company = currentCompanyService.requireCompany(authentication, companyId);
