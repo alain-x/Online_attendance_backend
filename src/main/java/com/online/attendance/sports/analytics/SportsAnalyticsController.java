@@ -51,7 +51,7 @@ public class SportsAnalyticsController {
         this.playerPaymentRepository = playerPaymentRepository;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @GetMapping("/dashboard")
     public Map<String, Object> dashboard(@RequestParam(required = false) Long clubId) {
         Map<String, Object> data = new HashMap<>();
@@ -97,7 +97,7 @@ public class SportsAnalyticsController {
         return data;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/player/{playerId}")
     public Map<String, Object> playerStats(@PathVariable Long playerId) {
         Map<String, Object> data = new HashMap<>();
@@ -124,7 +124,7 @@ public class SportsAnalyticsController {
         return data;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @GetMapping("/team/{teamId}")
     public Map<String, Object> teamStats(@PathVariable Long teamId) {
         Map<String, Object> data = new HashMap<>();

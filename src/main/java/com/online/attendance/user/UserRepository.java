@@ -32,4 +32,12 @@ public interface UserRepository extends JpaRepository<AppUser, Long> {
             @Param("username") String username,
             @Param("companySlug") String companySlug
     );
+
+    interface UserProfileImageView {
+        byte[] getProfileImageBytes();
+        String getProfileImageContentType();
+    }
+
+    @Query("SELECT u.profileImageBytes AS profileImageBytes, u.profileImageContentType AS profileImageContentType FROM AppUser u WHERE u.id = :id")
+    Optional<UserProfileImageView> findProfileImageById(@Param("id") Long id);
 }

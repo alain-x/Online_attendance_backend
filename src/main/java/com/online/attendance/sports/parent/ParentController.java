@@ -34,7 +34,7 @@ public class ParentController {
         this.playerProfileRepository = playerProfileRepository;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PostMapping
     public ResponseEntity<?> linkParent(@Valid @RequestBody LinkParentRequest request) {
         AppUser parentUser = userRepository.findById(request.getParentUserId()).orElse(null);
@@ -60,7 +60,7 @@ public class ParentController {
         return ResponseEntity.ok(ParentLinkResponse.from(link));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> unlink(@PathVariable Long id) {
         ParentLink link = parentLinkRepository.findById(id).orElse(null);
@@ -71,7 +71,7 @@ public class ParentController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'PARENT')")
     @GetMapping("/children")
     public List<ParentLinkResponse> getMyChildren(@RequestParam Long parentUserId) {
         return parentLinkRepository.findByParentUserId(parentUserId).stream()
@@ -79,7 +79,7 @@ public class ParentController {
                 .collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PARENT')")
     @GetMapping("/player/{playerId}")
     public List<ParentLinkResponse> getParents(@PathVariable Long playerId) {
         return parentLinkRepository.findByPlayerId(playerId).stream()

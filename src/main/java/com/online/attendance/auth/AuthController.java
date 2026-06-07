@@ -145,7 +145,7 @@ public class AuthController {
         Employee employee = (user.getId() != null && companyId != null)
                 ? employeeRepository.findByUserIdAndUserCompanyId(user.getId(), companyId).orElse(null)
                 : null;
-        body.put("profileImageUrl", resolveProfileImageUrl(employee));
+        body.put("profileImageUrl", resolveProfileImageUrl(employee, user));
 
         return ResponseEntity.ok(body);
     }
@@ -162,19 +162,26 @@ public class AuthController {
                         .orElse(null));
     }
 
-    private String resolveProfileImageUrl(Employee employee) {
-        if (employee == null || employee.getId() == null) {
-            return null;
+    private String resolveProfileImageUrl(Employee employee, AppUser user) {
+        if (employee != null && employee.getId() != null) {
+            String empUrl = employeeRepository.findProfileImageById(employee.getId())
+                    .filter(view -> view.getProfileImageBytes() != null && view.getProfileImageBytes().length > 0)
+                    .map(view -> EmployeeProfileImageService.profileImageApiUrl(employee.getId()))
+                    .orElseGet(() -> {
+                        String url = employee.getProfileImageUrl();
+                        if (url != null && (url.startsWith("/uploads/") || url.startsWith("uploads/"))) {
+                            return EmployeeProfileImageService.profileImageApiUrl(employee.getId());
+                        }
+                        return url;
+                    });
+            if (empUrl != null) return empUrl;
         }
-        return employeeRepository.findProfileImageById(employee.getId())
-                .filter(view -> view.getProfileImageBytes() != null && view.getProfileImageBytes().length > 0)
-                .map(view -> EmployeeProfileImageService.profileImageApiUrl(employee.getId()))
-                .orElseGet(() -> {
-                    String url = employee.getProfileImageUrl();
-                    if (url != null && (url.startsWith("/uploads/") || url.startsWith("uploads/"))) {
-                        return EmployeeProfileImageService.profileImageApiUrl(employee.getId());
-                    }
-                    return url;
-                });
+        if (user != null && user.getId() != null) {
+            return userRepository.findProfileImageById(user.getId())
+                    .filter(view -> view.getProfileImageBytes() != null && view.getProfileImageBytes().length > 0)
+                    .map(view -> "/api/users/" + user.getId() + "/profile/image")
+                    .orElse(null);
+        }
+        return null;
     }
 }

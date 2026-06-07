@@ -56,7 +56,7 @@ public class ChatController {
         this.userRepository = userRepository;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/rooms")
     public ResponseEntity<?> listRooms(Authentication authentication, @RequestParam(required = false) Long teamId) {
         AppUser user = resolveUser(authentication);
@@ -72,13 +72,13 @@ public class ChatController {
         return ResponseEntity.ok(rooms.stream().map(this::toRoomResponse).collect(Collectors.toList()));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/rooms/all")
     public List<ChatRoomResponse> listAllRooms() {
         return roomRepository.findAll().stream().map(this::toRoomResponse).collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/rooms")
     public ResponseEntity<?> createRoom(Authentication authentication, @Valid @RequestBody CreateChatRoomRequest request) {
         AppUser creator = resolveUser(authentication);
@@ -120,7 +120,7 @@ public class ChatController {
         return ResponseEntity.ok(toRoomResponse(savedRoom));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/direct")
     public ResponseEntity<?> createOrGetDirectChat(Authentication authentication, @RequestBody Map<String, Long> body) {
         Long targetUserId = body.get("userId");
@@ -160,7 +160,7 @@ public class ChatController {
         return ResponseEntity.ok(toRoomResponse(savedRoom));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/rooms/{roomId}/participants")
     public List<Map<String, Object>> listParticipants(@PathVariable Long roomId) {
         return participantRepository.findByRoomId(roomId).stream().map(p -> {
@@ -173,7 +173,7 @@ public class ChatController {
         }).collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/rooms/{roomId}/participants")
     public ResponseEntity<?> addParticipant(@PathVariable Long roomId, @RequestBody Map<String, Long> body) {
         ChatRoom room = roomRepository.findById(roomId).orElse(null);
@@ -202,7 +202,7 @@ public class ChatController {
         return ResponseEntity.ok(Map.of("id", participant.getId(), "userId", userId, "roomId", roomId));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @DeleteMapping("/rooms/{roomId}/participants/{userId}")
     public ResponseEntity<?> removeParticipant(@PathVariable Long roomId, @PathVariable Long userId) {
         List<ChatParticipant> participants = participantRepository.findByRoomId(roomId);
@@ -212,7 +212,7 @@ public class ChatController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/rooms/{roomId}/messages")
     public List<ChatMessageResponse> listMessages(@PathVariable Long roomId) {
         return messageRepository.findByRoomIdOrderByCreatedAtAsc(roomId).stream()
@@ -220,7 +220,7 @@ public class ChatController {
                 .collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/rooms/{roomId}/messages")
     public ResponseEntity<?> sendMessage(Authentication authentication, @PathVariable Long roomId, @Valid @RequestBody SendMessageRequest request) {
         ChatRoom room = roomRepository.findById(roomId).orElse(null);
@@ -246,7 +246,7 @@ public class ChatController {
         return ResponseEntity.ok(ChatMessageResponse.from(message));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
@@ -280,7 +280,7 @@ public class ChatController {
         }
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/files/{filename}")
     public ResponseEntity<?> serveFile(@PathVariable String filename) {
         try {
@@ -299,7 +299,7 @@ public class ChatController {
         }
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/users/search")
     public ResponseEntity<?> searchUsers(Authentication authentication, @RequestParam("q") String query) {
         AppUser current = resolveUser(authentication);

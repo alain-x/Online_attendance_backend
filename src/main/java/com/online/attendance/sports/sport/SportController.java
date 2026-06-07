@@ -24,7 +24,7 @@ public class SportController {
         this.sportRepository = sportRepository;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping
     public List<SportResponse> list() {
         return sportRepository.findByActiveTrue().stream()
@@ -32,7 +32,7 @@ public class SportController {
                 .collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable Long id) {
         var sport = sportRepository.findById(id);
@@ -42,7 +42,7 @@ public class SportController {
         return ResponseEntity.ok(SportResponse.from(sport.get()));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PostMapping
     public ResponseEntity<?> create(@RequestBody CreateSportRequest req) {
         if (req.getName() == null || req.getName().isBlank()) {
@@ -56,7 +56,7 @@ public class SportController {
         return ResponseEntity.ok(SportResponse.from(saved));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable Long id, @RequestBody UpdateSportRequest req) {
         var existing = sportRepository.findById(id);
@@ -70,7 +70,7 @@ public class SportController {
         return ResponseEntity.ok(SportResponse.from(sportRepository.save(sport)));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!sportRepository.existsById(id)) {

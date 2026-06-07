@@ -38,7 +38,7 @@ public class MatchController {
         this.playerProfileRepository = playerProfileRepository;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping
     public List<MatchResponse> list(@RequestParam(required = false) Long teamId) {
         List<Match> matches;
@@ -52,7 +52,7 @@ public class MatchController {
                 .collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable Long id) {
         var match = matchRepository.findById(id);
@@ -62,7 +62,7 @@ public class MatchController {
         return ResponseEntity.ok(MatchResponse.from(match.get(), lineupRepository.findByMatchId(match.get().getId()).size()));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
     public ResponseEntity<?> create(@Valid @RequestBody CreateMatchRequest request) {
         Team team = teamRepository.findById(request.getTeamId()).orElse(null);
@@ -82,7 +82,7 @@ public class MatchController {
         return ResponseEntity.ok(MatchResponse.from(match, 0));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateMatchRequest request) {
         var existing = matchRepository.findById(id);
@@ -104,7 +104,7 @@ public class MatchController {
         return ResponseEntity.ok().body(MatchResponse.from(match, lineupRepository.findByMatchId(match.getId()).size()));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!matchRepository.existsById(id)) {
@@ -114,7 +114,7 @@ public class MatchController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/{matchId}/lineup")
     public ResponseEntity<?> addToLineup(@PathVariable Long matchId, @Valid @RequestBody AddLineupRequest request) {
         Match match = matchRepository.findById(matchId).orElse(null);
@@ -141,7 +141,7 @@ public class MatchController {
         return ResponseEntity.ok(MatchLineupResponse.from(lineup));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{matchId}/lineup")
     public List<MatchLineupResponse> getLineup(@PathVariable Long matchId) {
         return lineupRepository.findByMatchId(matchId).stream()
@@ -149,7 +149,7 @@ public class MatchController {
                 .collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/{matchId}/lineup/{lineupId}")
     public ResponseEntity<?> removeFromLineup(@PathVariable Long matchId, @PathVariable Long lineupId) {
         MatchLineup lineup = lineupRepository.findById(lineupId).orElse(null);
@@ -160,7 +160,7 @@ public class MatchController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/{matchId}/events")
     public ResponseEntity<?> addEvent(@PathVariable Long matchId, @Valid @RequestBody AddMatchEventRequest request) {
         Match match = matchRepository.findById(matchId).orElse(null);
@@ -182,7 +182,7 @@ public class MatchController {
         return ResponseEntity.ok(MatchEventResponse.from(event));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{matchId}/events")
     public List<MatchEventResponse> getEvents(@PathVariable Long matchId) {
         return eventRepository.findByMatchId(matchId).stream()

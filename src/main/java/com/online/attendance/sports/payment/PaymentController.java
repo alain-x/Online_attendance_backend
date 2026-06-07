@@ -41,7 +41,7 @@ public class PaymentController {
         this.playerProfileRepository = playerProfileRepository;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/fees")
     public List<FeeResponse> listFees(@RequestParam(required = false) Long clubId,
                                        @RequestParam(required = false) Long teamId) {
@@ -56,7 +56,7 @@ public class PaymentController {
         return fees.stream().map(FeeResponse::from).collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/fees/{id}")
     public ResponseEntity<?> getFeeById(@PathVariable Long id) {
         var fee = feeRepository.findById(id);
@@ -66,7 +66,7 @@ public class PaymentController {
         return ResponseEntity.ok(FeeResponse.from(fee.get()));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PostMapping("/fees")
     public ResponseEntity<?> createFee(@Valid @RequestBody CreateFeeRequest request) {
         SportsClub club = clubRepository.findById(request.getClubId()).orElse(null);
@@ -90,7 +90,7 @@ public class PaymentController {
         return ResponseEntity.ok(FeeResponse.from(fee));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PutMapping("/fees/{id}")
     public ResponseEntity<?> updateFee(@PathVariable Long id, @Valid @RequestBody CreateFeeRequest request) {
         var existing = feeRepository.findById(id);
@@ -117,7 +117,7 @@ public class PaymentController {
         return ResponseEntity.ok().body(FeeResponse.from(fee));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @DeleteMapping("/fees/{id}")
     public ResponseEntity<?> deleteFee(@PathVariable Long id) {
         if (!feeRepository.existsById(id)) {
@@ -127,7 +127,7 @@ public class PaymentController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping
     public List<PaymentResponse> listPayments(@RequestParam(required = false) Long playerId,
                                                @RequestParam(required = false) Long feeId,
@@ -145,7 +145,7 @@ public class PaymentController {
         return payments.stream().map(PaymentResponse::from).collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
     public ResponseEntity<?> recordPayment(@Valid @RequestBody RecordPaymentRequest request) {
         MembershipFee fee = feeRepository.findById(request.getFeeId()).orElse(null);
@@ -169,7 +169,7 @@ public class PaymentController {
         return ResponseEntity.ok(PaymentResponse.from(payment));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PatchMapping("/{id}/status")
     public ResponseEntity<?> updatePaymentStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
         var existing = paymentRepository.findById(id);

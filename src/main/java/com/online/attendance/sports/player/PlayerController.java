@@ -49,7 +49,7 @@ public class PlayerController {
         this.teamMemberRepository = teamMemberRepository;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping
     public List<PlayerResponse> list(@RequestParam(required = false) Long clubId,
                                      @RequestParam(required = false) Long teamId) {
@@ -64,7 +64,7 @@ public class PlayerController {
         return players.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable Long id) {
         var profile = playerProfileRepository.findById(id);
@@ -74,7 +74,7 @@ public class PlayerController {
         return ResponseEntity.ok(toResponse(profile.get()));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
     @Transactional
     public ResponseEntity<?> create(@Valid @RequestBody CreatePlayerRequest request) {
@@ -106,7 +106,7 @@ public class PlayerController {
         return ResponseEntity.ok(toResponse(profile));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/{id}")
     @Transactional
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreatePlayerRequest request) {
@@ -129,7 +129,7 @@ public class PlayerController {
         return ResponseEntity.ok().body(toResponse(profile));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @DeleteMapping("/{id}")
     @Transactional
     public ResponseEntity<?> delete(@PathVariable Long id) {
@@ -140,7 +140,7 @@ public class PlayerController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{id}/statistics")
     public List<PlayerStatisticResponse> getStatistics(@PathVariable Long id) {
         return playerStatisticRepository.findByPlayerId(id).stream()
@@ -148,7 +148,7 @@ public class PlayerController {
                 .collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/{id}/statistics")
     public ResponseEntity<?> updateStatistics(@PathVariable Long id, @Valid @RequestBody PlayerStatisticResponse request) {
         PlayerProfile player = playerProfileRepository.findById(id).orElse(null);

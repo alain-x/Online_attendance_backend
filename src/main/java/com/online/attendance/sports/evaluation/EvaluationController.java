@@ -44,7 +44,7 @@ public class EvaluationController {
         this.userRepository = userRepository;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping
     public List<EvaluationResponse> list(@RequestParam(required = false) Long playerId,
                                           @RequestParam(required = false) Long teamId) {
@@ -61,7 +61,7 @@ public class EvaluationController {
                 .collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable Long id) {
         var evaluation = evaluationRepository.findById(id);
@@ -71,7 +71,7 @@ public class EvaluationController {
         return ResponseEntity.ok(EvaluationResponse.from(evaluation.get(), criterionRepository.findByEvaluationId(evaluation.get().getId())));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
     public ResponseEntity<?> create(@Valid @RequestBody CreateEvaluationRequest request) {
         PlayerProfile player = playerProfileRepository.findById(request.getPlayerId()).orElse(null);
@@ -97,7 +97,7 @@ public class EvaluationController {
         return ResponseEntity.ok(EvaluationResponse.from(evaluation, List.of()));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateEvaluationRequest request) {
         var existing = evaluationRepository.findById(id);
@@ -119,7 +119,7 @@ public class EvaluationController {
         return ResponseEntity.ok().body(EvaluationResponse.from(evaluation, criterionRepository.findByEvaluationId(evaluation.getId())));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!evaluationRepository.existsById(id)) {
@@ -129,7 +129,7 @@ public class EvaluationController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/{evaluationId}/criteria")
     public ResponseEntity<?> addCriterion(@PathVariable Long evaluationId, @Valid @RequestBody AddCriterionRequest request) {
         PlayerEvaluation evaluation = evaluationRepository.findById(evaluationId).orElse(null);

@@ -8,15 +8,19 @@ import com.online.attendance.user.dto.UpdateUserRequest;
 import com.online.attendance.user.dto.UserResponse;
 import jakarta.validation.Valid;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
@@ -24,16 +28,19 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class UserController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(UserController.class);
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentCompanyService currentCompanyService;
     private final EmployeeRepository employeeRepository;
+    private final UserProfileImageService userProfileImageService;
 
-    public UserController(UserRepository userRepository, PasswordEncoder passwordEncoder, CurrentCompanyService currentCompanyService, EmployeeRepository employeeRepository) {
+    public UserController(UserRepository userRepository, PasswordEncoder passwordEncoder, CurrentCompanyService currentCompanyService, EmployeeRepository employeeRepository, UserProfileImageService userProfileImageService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentCompanyService = currentCompanyService;
         this.employeeRepository = employeeRepository;
+        this.userProfileImageService = userProfileImageService;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN','CLUB_ADMIN')")
@@ -162,6 +169,81 @@ public class UserController {
 
         userRepository.delete(user);
         return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @Transactional
+    @PostMapping(value = "/me/profile/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> updateMyProfileImage(Authentication authentication, @RequestParam("image") MultipartFile image) {
+        AppUser user = requireCurrentUser(authentication);
+        if (user == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "User not found"));
+        }
+        if (image == null || image.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Image file is required"));
+        }
+        try {
+            userProfileImageService.saveProfileImage(user, image);
+            userRepository.save(user);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Profile image updated",
+                    "profileImageUrl", "/api/users/" + user.getId() + "/profile/image"
+            ));
+        } catch (Exception ex) {
+            log.error("Failed to save profile image for user {}: {}", user.getId(), ex.getMessage(), ex);
+            return ResponseEntity.status(500).body(Map.of("message", "Failed to save profile image: " + ex.getMessage()));
+        }
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @Transactional
+    @DeleteMapping("/me/profile/image")
+    public ResponseEntity<?> deleteMyProfileImage(Authentication authentication) {
+        AppUser user = requireCurrentUser(authentication);
+        if (user == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "User not found"));
+        }
+        user.setProfileImageBytes(null);
+        user.setProfileImageContentType(null);
+        user.setProfileImagePath(null);
+        user.setProfileImageUrl(null);
+        userRepository.save(user);
+        return ResponseEntity.ok(Map.of("message", "Profile image removed"));
+    }
+
+    @Transactional(readOnly = true)
+    @GetMapping("/{id}/profile/image")
+    public ResponseEntity<?> profileImage(@PathVariable Long id, @RequestParam(defaultValue = "false") boolean download) {
+        try {
+            Optional<UserRepository.UserProfileImageView> viewOpt = userRepository.findProfileImageById(id)
+                    .filter(view -> view.getProfileImageBytes() != null && view.getProfileImageBytes().length > 0);
+            if (viewOpt.isEmpty()) {
+                return ResponseEntity.status(404).body(Map.of("message", "Profile image not found"));
+            }
+            UserRepository.UserProfileImageView view = viewOpt.get();
+            String contentType = view.getProfileImageContentType();
+            if (contentType == null || contentType.isBlank()) {
+                contentType = MediaType.IMAGE_JPEG_VALUE;
+            }
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(contentType));
+            headers.setCacheControl("public, max-age=86400");
+            if (download) {
+                headers.setContentDisposition(
+                        org.springframework.http.ContentDisposition.attachment().filename("profile-" + id + ".jpg").build()
+                );
+            }
+            return ResponseEntity.ok().headers(headers).body(view.getProfileImageBytes());
+        } catch (Exception ex) {
+            log.error("Error serving profile image for user {}: {}", id, ex.getMessage(), ex);
+            return ResponseEntity.status(500).body(Map.of("message", "Failed to serve profile image"));
+        }
+    }
+
+    private AppUser requireCurrentUser(Authentication authentication) {
+        String username = currentCompanyService.requireUsername(authentication);
+        String companySlug = currentCompanyService.requireCompanySlug(authentication);
+        return userRepository.findByUsernameAndCompanySlug(username, companySlug).orElse(null);
     }
 
     private UserResponse toResponse(AppUser user) {

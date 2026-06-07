@@ -29,7 +29,7 @@ public class ScheduleController {
         this.teamRepository = teamRepository;
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping
     public List<CalendarEventResponse> list(@RequestParam(required = false) Long teamId,
                                              @RequestParam(required = false) LocalDateTime start,
@@ -45,7 +45,7 @@ public class ScheduleController {
         return events.stream().map(CalendarEventResponse::from).collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable Long id) {
         var event = eventRepository.findById(id);
@@ -55,7 +55,7 @@ public class ScheduleController {
         return ResponseEntity.ok(CalendarEventResponse.from(event.get()));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
     public ResponseEntity<?> create(@Valid @RequestBody CreateCalendarEventRequest request) {
         Team team = teamRepository.findById(request.getTeamId()).orElse(null);
@@ -77,7 +77,7 @@ public class ScheduleController {
         return ResponseEntity.ok(CalendarEventResponse.from(event));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateCalendarEventRequest request) {
         var existing = eventRepository.findById(id);
@@ -102,7 +102,7 @@ public class ScheduleController {
         return ResponseEntity.ok().body(CalendarEventResponse.from(event));
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!eventRepository.existsById(id)) {

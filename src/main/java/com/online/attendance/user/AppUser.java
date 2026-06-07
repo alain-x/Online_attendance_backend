@@ -47,4 +47,16 @@ public class AppUser {
 
     @Column(nullable = false)
     private boolean enabled;
+
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
+    @Column(name = "profile_image_path", length = 1000)
+    private String profileImagePath;
+
+    @Column(name = "profile_image_bytes", columnDefinition = "BYTEA")
+    private byte[] profileImageBytes;
+
+    @Column(name = "profile_image_content_type", length = 120)
+    private String profileImageContentType;
 }
