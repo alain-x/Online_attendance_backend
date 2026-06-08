@@ -40,6 +40,7 @@ public class ChatController {
     private final ChatRoomRepository roomRepository;
     private final ChatMessageRepository messageRepository;
     private final ChatParticipantRepository participantRepository;
+    private final MessageHiddenByRepository messageHiddenRepository;
     private final TeamRepository teamRepository;
     private final UserRepository userRepository;
 
@@ -47,11 +48,14 @@ public class ChatController {
     private String uploadDir;
 
     public ChatController(ChatRoomRepository roomRepository, ChatMessageRepository messageRepository,
-                          ChatParticipantRepository participantRepository, TeamRepository teamRepository,
+                          ChatParticipantRepository participantRepository,
+                          MessageHiddenByRepository messageHiddenRepository,
+                          TeamRepository teamRepository,
                           UserRepository userRepository) {
         this.roomRepository = roomRepository;
         this.messageRepository = messageRepository;
         this.participantRepository = participantRepository;
+        this.messageHiddenRepository = messageHiddenRepository;
         this.teamRepository = teamRepository;
         this.userRepository = userRepository;
     }
@@ -228,8 +232,15 @@ public class ChatController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/rooms/{roomId}/messages")
-    public List<ChatMessageResponse> listMessages(@PathVariable Long roomId) {
-        return messageRepository.findByRoomIdAndDeletedFalseOrderByCreatedAtAsc(roomId).stream()
+    public List<ChatMessageResponse> listMessages(Authentication authentication, @PathVariable Long roomId) {
+        AppUser user = resolveUser(authentication);
+        List<ChatMessage> messages;
+        if (user != null) {
+            messages = messageRepository.findByRoomIdAndNotHidden(roomId, user.getId());
+        } else {
+            messages = messageRepository.findByRoomIdAndDeletedFalseOrderByCreatedAtAsc(roomId);
+        }
+        return messages.stream()
                 .map(ChatMessageResponse::from)
                 .collect(Collectors.toList());
     }
@@ -268,7 +279,9 @@ public class ChatController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @DeleteMapping("/rooms/{roomId}/messages/{messageId}")
     @Transactional
-    public ResponseEntity<?> deleteMessage(Authentication authentication, @PathVariable Long roomId, @PathVariable Long messageId) {
+    public ResponseEntity<?> deleteMessage(Authentication authentication, @PathVariable Long roomId,
+                                            @PathVariable Long messageId,
+                                            @RequestParam(defaultValue = "everyone") String mode) {
         AppUser user = resolveUser(authentication);
         if (user == null) {
             return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
@@ -277,12 +290,21 @@ public class ChatController {
         if (msg == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Message not found"));
         }
+
+        if ("me".equalsIgnoreCase(mode)) {
+            if (!messageHiddenRepository.existsByMessageIdAndUserId(messageId, user.getId())) {
+                messageHiddenRepository.save(new MessageHiddenBy(messageId, user.getId()));
+            }
+            return ResponseEntity.ok(Map.of("message", "Message hidden"));
+        }
+
+        // "everyone" mode — only sender can do this
         if (!msg.getSender().getId().equals(user.getId())) {
-            return ResponseEntity.status(403).body(Map.of("message", "You can only delete your own messages"));
+            return ResponseEntity.status(403).body(Map.of("message", "You can only delete your own messages for everyone"));
         }
         msg.setDeleted(true);
         messageRepository.save(msg);
-        return ResponseEntity.ok(Map.of("message", "Message deleted"));
+        return ResponseEntity.ok(Map.of("message", "Message deleted for everyone"));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
@@ -307,7 +329,7 @@ public class ChatController {
             try (InputStream in = file.getInputStream()) {
                 Files.copy(in, targetPath, StandardCopyOption.REPLACE_EXISTING);
             }
-            String fileUrl = "/api/sports/chat/files/" + storedName;
+            String fileUrl = "/uploads/chat/" + storedName;
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("fileUrl", fileUrl);
             result.put("fileName", originalName);
@@ -320,7 +342,6 @@ public class ChatController {
         }
     }
 
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/files/{filename}")
     public ResponseEntity<?> serveFile(@PathVariable String filename) {
         try {
@@ -333,6 +354,7 @@ public class ChatController {
             byte[] data = Files.readAllBytes(filePath);
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(contentType))
+                    .header("Cache-Control", "public, max-age=31536000")
                     .body(data);
         } catch (IOException e) {
             return ResponseEntity.internalServerError().build();

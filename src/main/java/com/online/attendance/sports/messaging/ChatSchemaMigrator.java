@@ -32,6 +32,9 @@ public class ChatSchemaMigrator implements CommandLineRunner {
         // Ensure FK columns are nullable (schema may have been created with NOT NULL previously)
         setNullable("sports_chat_rooms", "team_id");
         setNullable("sports_chat_rooms", "created_by");
+
+        // Create message_hidden table for "delete for me" feature
+        createMessageHiddenTable();
     }
 
     private void addColumnIfMissing(String table, String column, String type) {
@@ -47,6 +50,21 @@ public class ChatSchemaMigrator implements CommandLineRunner {
             }
         } catch (Exception e) {
             log.warn("Could not add column {}.{}: {}", table, column, e.getMessage());
+        }
+    }
+
+    private void createMessageHiddenTable() {
+        try {
+            jdbcTemplate.execute(
+                "CREATE TABLE IF NOT EXISTS sports_chat_message_hidden (" +
+                "  message_id BIGINT NOT NULL, " +
+                "  user_id BIGINT NOT NULL, " +
+                "  PRIMARY KEY (message_id, user_id)" +
+                ")"
+            );
+            log.info("Ensured sports_chat_message_hidden table exists");
+        } catch (Exception e) {
+            log.warn("Could not create sports_chat_message_hidden table: {}", e.getMessage());
         }
     }
 
