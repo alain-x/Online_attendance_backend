@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sports/clubs")
+@Transactional(readOnly = true)
 public class ClubController {
 
     private static final Logger log = LoggerFactory.getLogger(ClubController.class);
@@ -44,6 +46,7 @@ public class ClubController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PostMapping
+    @Transactional
     public ResponseEntity<?> create(@Valid @RequestBody CreateClubRequest request) {
         if (clubRepository.existsBySlug(request.getSlug())) {
             return ResponseEntity.status(409).body(Map.of("message", "Slug already exists"));
@@ -62,6 +65,7 @@ public class ClubController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PutMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateClubRequest request) {
         var existing = clubRepository.findById(id);
         if (existing.isEmpty()) {
@@ -82,6 +86,7 @@ public class ClubController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!clubRepository.existsById(id)) {
             return ResponseEntity.status(404).body(Map.of("message", "Club not found"));

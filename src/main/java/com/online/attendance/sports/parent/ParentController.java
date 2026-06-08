@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sports/parents")
+@Transactional(readOnly = true)
 public class ParentController {
 
     private static final Logger log = LoggerFactory.getLogger(ParentController.class);
@@ -36,6 +38,7 @@ public class ParentController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PostMapping
+    @Transactional
     public ResponseEntity<?> linkParent(@Valid @RequestBody LinkParentRequest request) {
         AppUser parentUser = userRepository.findById(request.getParentUserId()).orElse(null);
         if (parentUser == null) {
@@ -62,6 +65,7 @@ public class ParentController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> unlink(@PathVariable Long id) {
         ParentLink link = parentLinkRepository.findById(id).orElse(null);
         if (link == null) {

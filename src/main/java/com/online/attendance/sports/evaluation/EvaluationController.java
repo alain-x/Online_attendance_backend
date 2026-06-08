@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sports/evaluations")
+@Transactional(readOnly = true)
 public class EvaluationController {
 
     private static final Logger log = LoggerFactory.getLogger(EvaluationController.class);
@@ -73,6 +75,7 @@ public class EvaluationController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
+    @Transactional
     public ResponseEntity<?> create(@Valid @RequestBody CreateEvaluationRequest request) {
         PlayerProfile player = playerProfileRepository.findById(request.getPlayerId()).orElse(null);
         if (player == null) {
@@ -99,6 +102,7 @@ public class EvaluationController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateEvaluationRequest request) {
         var existing = evaluationRepository.findById(id);
         if (existing.isEmpty()) {
@@ -121,6 +125,7 @@ public class EvaluationController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!evaluationRepository.existsById(id)) {
             return ResponseEntity.status(404).body(Map.of("message", "Evaluation not found"));
@@ -131,6 +136,7 @@ public class EvaluationController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/{evaluationId}/criteria")
+    @Transactional
     public ResponseEntity<?> addCriterion(@PathVariable Long evaluationId, @Valid @RequestBody AddCriterionRequest request) {
         PlayerEvaluation evaluation = evaluationRepository.findById(evaluationId).orElse(null);
         if (evaluation == null) {

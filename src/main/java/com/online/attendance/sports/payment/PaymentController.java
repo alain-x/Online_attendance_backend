@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sports/payments")
+@Transactional(readOnly = true)
 public class PaymentController {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
@@ -68,6 +70,7 @@ public class PaymentController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PostMapping("/fees")
+    @Transactional
     public ResponseEntity<?> createFee(@Valid @RequestBody CreateFeeRequest request) {
         SportsClub club = clubRepository.findById(request.getClubId()).orElse(null);
         if (club == null) {
@@ -92,6 +95,7 @@ public class PaymentController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PutMapping("/fees/{id}")
+    @Transactional
     public ResponseEntity<?> updateFee(@PathVariable Long id, @Valid @RequestBody CreateFeeRequest request) {
         var existing = feeRepository.findById(id);
         if (existing.isEmpty()) {
@@ -119,6 +123,7 @@ public class PaymentController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @DeleteMapping("/fees/{id}")
+    @Transactional
     public ResponseEntity<?> deleteFee(@PathVariable Long id) {
         if (!feeRepository.existsById(id)) {
             return ResponseEntity.status(404).body(Map.of("message", "Fee not found"));
@@ -147,6 +152,7 @@ public class PaymentController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
+    @Transactional
     public ResponseEntity<?> recordPayment(@Valid @RequestBody RecordPaymentRequest request) {
         MembershipFee fee = feeRepository.findById(request.getFeeId()).orElse(null);
         if (fee == null) {
@@ -171,6 +177,7 @@ public class PaymentController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PatchMapping("/{id}/status")
+    @Transactional
     public ResponseEntity<?> updatePaymentStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
         var existing = paymentRepository.findById(id);
         if (existing.isEmpty()) {

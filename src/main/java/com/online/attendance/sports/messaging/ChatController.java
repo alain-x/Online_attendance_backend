@@ -5,8 +5,8 @@ import com.online.attendance.sports.team.Team;
 import com.online.attendance.sports.team.TeamRepository;
 import com.online.attendance.user.AppUser;
 import com.online.attendance.user.UserRepository;
-import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
+import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sports/chat")
-@Transactional
+@Transactional(readOnly = true)
 public class ChatController {
 
     private static final Logger log = LoggerFactory.getLogger(ChatController.class);
@@ -80,6 +80,7 @@ public class ChatController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/rooms")
+    @Transactional
     public ResponseEntity<?> createRoom(Authentication authentication, @Valid @RequestBody CreateChatRoomRequest request) {
         AppUser creator = resolveUser(authentication);
         if (creator == null) {
@@ -122,6 +123,7 @@ public class ChatController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/direct")
+    @Transactional
     public ResponseEntity<?> createOrGetDirectChat(Authentication authentication, @RequestBody Map<String, Long> body) {
         Long targetUserId = body.get("userId");
         if (targetUserId == null) {
@@ -175,6 +177,7 @@ public class ChatController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/rooms/{roomId}/participants")
+    @Transactional
     public ResponseEntity<?> addParticipant(@PathVariable Long roomId, @RequestBody Map<String, Long> body) {
         ChatRoom room = roomRepository.findById(roomId).orElse(null);
         if (room == null) {
@@ -204,6 +207,7 @@ public class ChatController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @DeleteMapping("/rooms/{roomId}/participants/{userId}")
+    @Transactional
     public ResponseEntity<?> removeParticipant(@PathVariable Long roomId, @PathVariable Long userId) {
         List<ChatParticipant> participants = participantRepository.findByRoomId(roomId);
         participants.stream()
@@ -222,6 +226,7 @@ public class ChatController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/rooms/{roomId}/messages")
+    @Transactional
     public ResponseEntity<?> sendMessage(Authentication authentication, @PathVariable Long roomId, @Valid @RequestBody SendMessageRequest request) {
         ChatRoom room = roomRepository.findById(roomId).orElse(null);
         if (room == null) {
@@ -248,6 +253,7 @@ public class ChatController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/upload")
+    @Transactional
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "File is empty"));

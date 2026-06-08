@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sports/training")
+@Transactional(readOnly = true)
 public class TrainingController {
 
     private static final Logger log = LoggerFactory.getLogger(TrainingController.class);
@@ -74,6 +76,7 @@ public class TrainingController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/sessions")
+    @Transactional
     public ResponseEntity<?> createSession(@Valid @RequestBody CreateTrainingSessionRequest request) {
         Team team = teamRepository.findById(request.getTeamId()).orElse(null);
         if (team == null) {
@@ -98,6 +101,7 @@ public class TrainingController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/sessions/{id}")
+    @Transactional
     public ResponseEntity<?> updateSession(@PathVariable Long id, @Valid @RequestBody CreateTrainingSessionRequest request) {
         var existing = sessionRepository.findById(id);
         if (existing.isEmpty()) {
@@ -125,6 +129,7 @@ public class TrainingController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/sessions/{id}")
+    @Transactional
     public ResponseEntity<?> deleteSession(@PathVariable Long id) {
         if (!sessionRepository.existsById(id)) {
             return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
@@ -135,28 +140,30 @@ public class TrainingController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/sessions/{sessionId}/attendance")
-    public ResponseEntity<?> markAttendance(@PathVariable Long sessionId, @Valid @RequestBody MarkAttendanceRequest request) {
+    @Transactional
+    public ResponseEntity<?> markAttendance(@PathVariable Long sessionId, @Valid @RequestBody List<MarkAttendanceRequest> requests) {
         TrainingSession session = sessionRepository.findById(sessionId).orElse(null);
         if (session == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
         }
-        PlayerProfile player = playerProfileRepository.findById(request.getPlayerId()).orElse(null);
-        if (player == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Player not found"));
+        List<TrainingAttendance> saved = new java.util.ArrayList<>();
+        for (MarkAttendanceRequest req : requests) {
+            PlayerProfile player = playerProfileRepository.findById(req.getPlayerId()).orElse(null);
+            if (player == null) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Player not found: " + req.getPlayerId()));
+            }
+            boolean exists = attendanceRepository.findBySessionId(sessionId).stream()
+                    .anyMatch(a -> a.getPlayer().getId().equals(req.getPlayerId()));
+            if (exists) continue;
+            TrainingAttendance attendance = TrainingAttendance.builder()
+                    .session(session)
+                    .player(player)
+                    .status(req.getStatus())
+                    .notes(req.getNotes())
+                    .build();
+            saved.add(attendanceRepository.save(attendance));
         }
-        boolean exists = attendanceRepository.findBySessionId(sessionId).stream()
-                .anyMatch(a -> a.getPlayer().getId().equals(request.getPlayerId()));
-        if (exists) {
-            return ResponseEntity.status(409).body(Map.of("message", "Attendance already marked for this player"));
-        }
-        TrainingAttendance attendance = TrainingAttendance.builder()
-                .session(session)
-                .player(player)
-                .status(request.getStatus())
-                .notes(request.getNotes())
-                .build();
-        attendance = attendanceRepository.save(attendance);
-        return ResponseEntity.ok(TrainingAttendanceResponse.from(attendance));
+        return ResponseEntity.ok(saved.stream().map(TrainingAttendanceResponse::from).collect(Collectors.toList()));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")

@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sports/matches")
+@Transactional(readOnly = true)
 public class MatchController {
 
     private static final Logger log = LoggerFactory.getLogger(MatchController.class);
@@ -64,6 +66,7 @@ public class MatchController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
+    @Transactional
     public ResponseEntity<?> create(@Valid @RequestBody CreateMatchRequest request) {
         Team team = teamRepository.findById(request.getTeamId()).orElse(null);
         if (team == null) {
@@ -84,6 +87,7 @@ public class MatchController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateMatchRequest request) {
         var existing = matchRepository.findById(id);
         if (existing.isEmpty()) {
@@ -106,6 +110,7 @@ public class MatchController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!matchRepository.existsById(id)) {
             return ResponseEntity.status(404).body(Map.of("message", "Match not found"));
@@ -116,6 +121,7 @@ public class MatchController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/{matchId}/lineup")
+    @Transactional
     public ResponseEntity<?> addToLineup(@PathVariable Long matchId, @Valid @RequestBody AddLineupRequest request) {
         Match match = matchRepository.findById(matchId).orElse(null);
         if (match == null) {
@@ -151,6 +157,7 @@ public class MatchController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/{matchId}/lineup/{lineupId}")
+    @Transactional
     public ResponseEntity<?> removeFromLineup(@PathVariable Long matchId, @PathVariable Long lineupId) {
         MatchLineup lineup = lineupRepository.findById(lineupId).orElse(null);
         if (lineup == null || !lineup.getMatch().getId().equals(matchId)) {
@@ -162,6 +169,7 @@ public class MatchController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/{matchId}/events")
+    @Transactional
     public ResponseEntity<?> addEvent(@PathVariable Long matchId, @Valid @RequestBody AddMatchEventRequest request) {
         Match match = matchRepository.findById(matchId).orElse(null);
         if (match == null) {
