@@ -125,41 +125,46 @@ public class ChatController {
     @PostMapping("/direct")
     @Transactional
     public ResponseEntity<?> createOrGetDirectChat(Authentication authentication, @RequestBody Map<String, Long> body) {
-        Long targetUserId = body.get("userId");
-        if (targetUserId == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "userId is required"));
-        }
-        AppUser current = resolveUser(authentication);
-        if (current == null) {
-            return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
-        }
-        if (current.getId().equals(targetUserId)) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Cannot chat with yourself"));
-        }
-        AppUser target = userRepository.findById(targetUserId).orElse(null);
-        if (target == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "User not found"));
-        }
+        try {
+            Long targetUserId = body.get("userId");
+            if (targetUserId == null) {
+                return ResponseEntity.badRequest().body(Map.of("message", "userId is required"));
+            }
+            AppUser current = resolveUser(authentication);
+            if (current == null) {
+                return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
+            }
+            if (current.getId().equals(targetUserId)) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Cannot chat with yourself"));
+            }
+            AppUser target = userRepository.findById(targetUserId).orElse(null);
+            if (target == null) {
+                return ResponseEntity.badRequest().body(Map.of("message", "User not found"));
+            }
 
-        List<ChatRoom> existing = roomRepository.findDirectChat(current.getId(), targetUserId);
-        if (!existing.isEmpty()) {
-            return ResponseEntity.ok(toRoomResponse(existing.get(0)));
+            List<ChatRoom> existing = roomRepository.findDirectChat(current.getId(), targetUserId);
+            if (!existing.isEmpty()) {
+                return ResponseEntity.ok(toRoomResponse(existing.get(0)));
+            }
+
+            ChatRoom newRoom = ChatRoom.builder()
+                    .name(target.getUsername() != null ? target.getUsername() : "Unknown")
+                    .type("DIRECT")
+                    .isGroup(false)
+                    .createdBy(current)
+                    .createdAt(Instant.now())
+                    .build();
+            newRoom = roomRepository.save(newRoom);
+            ChatRoom savedRoom = newRoom;
+
+            participantRepository.save(ChatParticipant.builder().room(savedRoom).user(current).joinedAt(Instant.now()).build());
+            participantRepository.save(ChatParticipant.builder().room(savedRoom).user(target).joinedAt(Instant.now()).build());
+
+            return ResponseEntity.ok(toRoomResponse(savedRoom));
+        } catch (Exception e) {
+            log.error("createOrGetDirectChat failed: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to create direct chat: " + e.getMessage()));
         }
-
-        ChatRoom newRoom = ChatRoom.builder()
-                .name(target.getUsername())
-                .type("DIRECT")
-                .isGroup(false)
-                .createdBy(current)
-                .createdAt(Instant.now())
-                .build();
-        newRoom = roomRepository.save(newRoom);
-        ChatRoom savedRoom = newRoom;
-
-        participantRepository.save(ChatParticipant.builder().room(savedRoom).user(current).joinedAt(Instant.now()).build());
-        participantRepository.save(ChatParticipant.builder().room(savedRoom).user(target).joinedAt(Instant.now()).build());
-
-        return ResponseEntity.ok(toRoomResponse(savedRoom));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
