@@ -18,4 +18,6 @@ public class SendMessageRequest {
     private Long fileSize;
 
     private String mimeType;
+
+    private Long parentMessageId;
 }

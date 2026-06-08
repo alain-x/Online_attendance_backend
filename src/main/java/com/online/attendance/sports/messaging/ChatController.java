@@ -229,7 +229,7 @@ public class ChatController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/rooms/{roomId}/messages")
     public List<ChatMessageResponse> listMessages(@PathVariable Long roomId) {
-        return messageRepository.findByRoomIdOrderByCreatedAtAsc(roomId).stream()
+        return messageRepository.findByRoomIdAndDeletedFalseOrderByCreatedAtAsc(roomId).stream()
                 .map(ChatMessageResponse::from)
                 .collect(Collectors.toList());
     }
@@ -246,7 +246,7 @@ public class ChatController {
         if (sender == null) {
             return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
         }
-        ChatMessage message = ChatMessage.builder()
+        ChatMessage.ChatMessageBuilder builder = ChatMessage.builder()
                 .room(room)
                 .sender(sender)
                 .content(request.getContent() != null ? request.getContent() : "")
@@ -255,10 +255,34 @@ public class ChatController {
                 .fileName(request.getFileName())
                 .fileSize(request.getFileSize())
                 .mimeType(request.getMimeType())
-                .createdAt(Instant.now())
-                .build();
-        message = messageRepository.save(message);
+                .createdAt(Instant.now());
+
+        if (request.getParentMessageId() != null) {
+            messageRepository.findById(request.getParentMessageId()).ifPresent(builder::parentMessage);
+        }
+
+        ChatMessage message = messageRepository.save(builder.build());
         return ResponseEntity.ok(ChatMessageResponse.from(message));
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
+    @DeleteMapping("/rooms/{roomId}/messages/{messageId}")
+    @Transactional
+    public ResponseEntity<?> deleteMessage(Authentication authentication, @PathVariable Long roomId, @PathVariable Long messageId) {
+        AppUser user = resolveUser(authentication);
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
+        }
+        ChatMessage msg = messageRepository.findByIdAndRoomId(messageId, roomId).orElse(null);
+        if (msg == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Message not found"));
+        }
+        if (!msg.getSender().getId().equals(user.getId())) {
+            return ResponseEntity.status(403).body(Map.of("message", "You can only delete your own messages"));
+        }
+        msg.setDeleted(true);
+        messageRepository.save(msg);
+        return ResponseEntity.ok(Map.of("message", "Message deleted"));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
@@ -342,7 +366,7 @@ public class ChatController {
     private ChatRoomResponse toRoomResponse(ChatRoom room) {
         List<ChatParticipant> participants = participantRepository.findByRoomId(room.getId());
         int participantCount = participants.size();
-        ChatMessageResponse lastMsg = messageRepository.findTopByRoomIdOrderByCreatedAtDesc(room.getId())
+        ChatMessageResponse lastMsg = messageRepository.findTopByRoomIdAndDeletedFalseOrderByCreatedAtDesc(room.getId())
                 .map(ChatMessageResponse::from).orElse(null);
         return new ChatRoomResponse(
                 room.getId(),

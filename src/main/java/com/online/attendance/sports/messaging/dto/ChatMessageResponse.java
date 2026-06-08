@@ -15,9 +15,13 @@ public record ChatMessageResponse(
         String fileName,
         Long fileSize,
         String mimeType,
-        Instant createdAt
+        Instant createdAt,
+        Long parentMessageId,
+        String parentContent,
+        String parentSenderName
 ) {
     public static ChatMessageResponse from(ChatMessage message) {
+        ChatMessage parent = message.getParentMessage();
         return new ChatMessageResponse(
                 message.getId(),
                 message.getRoom() != null ? message.getRoom().getId() : null,
@@ -29,7 +33,10 @@ public record ChatMessageResponse(
                 message.getFileName(),
                 message.getFileSize(),
                 message.getMimeType(),
-                message.getCreatedAt()
+                message.getCreatedAt(),
+                parent != null ? parent.getId() : null,
+                parent != null ? parent.getContent() : null,
+                parent != null && parent.getSender() != null ? parent.getSender().getUsername() : null
         );
     }
 }

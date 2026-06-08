@@ -26,6 +26,8 @@ public class ChatSchemaMigrator implements CommandLineRunner {
         addColumnIfMissing("sports_chat_messages", "file_name", "VARCHAR(255)");
         addColumnIfMissing("sports_chat_messages", "file_size", "BIGINT");
         addColumnIfMissing("sports_chat_messages", "mime_type", "VARCHAR(100)");
+        addColumnIfMissing("sports_chat_messages", "parent_message_id", "BIGINT");
+        addColumnIfMissing("sports_chat_messages", "is_deleted", "BOOLEAN DEFAULT FALSE");
 
         // Ensure FK columns are nullable (schema may have been created with NOT NULL previously)
         setNullable("sports_chat_rooms", "team_id");
