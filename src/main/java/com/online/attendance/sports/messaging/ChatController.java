@@ -82,43 +82,48 @@ public class ChatController {
     @PostMapping("/rooms")
     @Transactional
     public ResponseEntity<?> createRoom(Authentication authentication, @Valid @RequestBody CreateChatRoomRequest request) {
-        AppUser creator = resolveUser(authentication);
-        if (creator == null) {
-            return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
-        }
-        Team team = request.getTeamId() != null ? teamRepository.findById(request.getTeamId()).orElse(null) : null;
-
-        ChatRoom newRoom = ChatRoom.builder()
-                .team(team)
-                .name(request.getName())
-                .type(request.getType())
-                .isGroup(request.isGroup())
-                .createdBy(creator)
-                .createdAt(Instant.now())
-                .build();
-        ChatRoom savedRoom = roomRepository.save(newRoom);
-
-        participantRepository.save(ChatParticipant.builder()
-                .room(savedRoom)
-                .user(creator)
-                .joinedAt(Instant.now())
-                .build());
-
-        if (request.getParticipantIds() != null) {
-            for (Long pid : request.getParticipantIds()) {
-                if (pid.equals(creator.getId())) continue;
-                userRepository.findById(pid).ifPresent(u -> {
-                    boolean already = participantRepository.findByRoomId(savedRoom.getId()).stream()
-                            .anyMatch(p -> p.getUser().getId().equals(pid));
-                    if (!already) {
-                        participantRepository.save(ChatParticipant.builder()
-                                .room(savedRoom).user(u).joinedAt(Instant.now()).build());
-                    }
-                });
+        try {
+            AppUser creator = resolveUser(authentication);
+            if (creator == null) {
+                return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
             }
-        }
+            Team team = request.getTeamId() != null ? teamRepository.findById(request.getTeamId()).orElse(null) : null;
 
-        return ResponseEntity.ok(toRoomResponse(savedRoom));
+            ChatRoom newRoom = ChatRoom.builder()
+                    .team(team)
+                    .name(request.getName())
+                    .type(request.getType())
+                    .isGroup(request.isGroup())
+                    .createdBy(creator)
+                    .createdAt(Instant.now())
+                    .build();
+            ChatRoom savedRoom = roomRepository.save(newRoom);
+
+            participantRepository.save(ChatParticipant.builder()
+                    .room(savedRoom)
+                    .user(creator)
+                    .joinedAt(Instant.now())
+                    .build());
+
+            if (request.getParticipantIds() != null) {
+                for (Long pid : request.getParticipantIds()) {
+                    if (pid.equals(creator.getId())) continue;
+                    userRepository.findById(pid).ifPresent(u -> {
+                        boolean already = participantRepository.findByRoomId(savedRoom.getId()).stream()
+                                .anyMatch(p -> p.getUser().getId().equals(pid));
+                        if (!already) {
+                            participantRepository.save(ChatParticipant.builder()
+                                    .room(savedRoom).user(u).joinedAt(Instant.now()).build());
+                        }
+                    });
+                }
+            }
+
+            return ResponseEntity.ok(toRoomResponse(savedRoom));
+        } catch (Exception e) {
+            log.error("createRoom failed: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to create room: " + e.getMessage()));
+        }
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
