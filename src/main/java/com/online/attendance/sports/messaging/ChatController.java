@@ -141,9 +141,9 @@ public class ChatController {
             return ResponseEntity.badRequest().body(Map.of("message", "User not found"));
         }
 
-        Optional<ChatRoom> existing = roomRepository.findDirectChat(current.getId(), targetUserId);
-        if (existing.isPresent()) {
-            return ResponseEntity.ok(toRoomResponse(existing.get()));
+        List<ChatRoom> existing = roomRepository.findDirectChat(current.getId(), targetUserId);
+        if (!existing.isEmpty()) {
+            return ResponseEntity.ok(toRoomResponse(existing.get(0)));
         }
 
         ChatRoom newRoom = ChatRoom.builder()

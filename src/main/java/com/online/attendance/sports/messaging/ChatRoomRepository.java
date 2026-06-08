@@ -5,7 +5,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     @Query("SELECT cr FROM ChatRoom cr LEFT JOIN FETCH cr.createdBy WHERE cr.team.id = :teamId")
@@ -18,8 +17,8 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
             "SELECT cp1.room.id FROM ChatParticipant cp1 WHERE cp1.user.id = :user1Id" +
             ") AND cr.id IN (" +
             "SELECT cp2.room.id FROM ChatParticipant cp2 WHERE cp2.user.id = :user2Id" +
-            ")")
-    Optional<ChatRoom> findDirectChat(@Param("user1Id") Long user1Id, @Param("user2Id") Long user2Id);
+            ") ORDER BY cr.createdAt DESC")
+    List<ChatRoom> findDirectChat(@Param("user1Id") Long user1Id, @Param("user2Id") Long user2Id);
 
     @Query("SELECT cr FROM ChatRoom cr LEFT JOIN FETCH cr.team LEFT JOIN FETCH cr.createdBy WHERE cr.id IN (" +
             "SELECT cp.room.id FROM ChatParticipant cp WHERE cp.user.id = :userId" +
