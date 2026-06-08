@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -76,7 +77,7 @@ public class EvaluationController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
     @Transactional
-    public ResponseEntity<?> create(@Valid @RequestBody CreateEvaluationRequest request) {
+    public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateEvaluationRequest request) {
         PlayerProfile player = playerProfileRepository.findById(request.getPlayerId()).orElse(null);
         if (player == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Player not found"));
@@ -85,9 +86,14 @@ public class EvaluationController {
         if (team == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Team not found"));
         }
+        AppUser evaluator = resolveUser(authentication);
+        if (evaluator == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "Authenticated user not found"));
+        }
         Instant now = Instant.now();
         PlayerEvaluation evaluation = PlayerEvaluation.builder()
                 .player(player)
+                .evaluator(evaluator)
                 .team(team)
                 .period(request.getPeriod())
                 .overallRating(request.getOverallRating())
@@ -98,6 +104,18 @@ public class EvaluationController {
                 .build();
         evaluation = evaluationRepository.save(evaluation);
         return ResponseEntity.ok(EvaluationResponse.from(evaluation, List.of()));
+    }
+
+    private AppUser resolveUser(Authentication authentication) {
+        String principal = authentication.getName();
+        if (principal == null) return null;
+        int idx = principal.indexOf("::");
+        String companySlug = (idx > 0) ? principal.substring(0, idx) : null;
+        String username = (idx > 0 && idx + 2 < principal.length()) ? principal.substring(idx + 2) : principal;
+        if (companySlug != null) {
+            return userRepository.findByUsernameAndCompanySlug(username, companySlug).orElse(null);
+        }
+        return userRepository.findByUsername(username).orElse(null);
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
