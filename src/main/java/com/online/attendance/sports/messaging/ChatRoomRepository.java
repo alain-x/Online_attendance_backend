@@ -24,4 +24,8 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
             "SELECT cp.room.id FROM ChatParticipant cp WHERE cp.user.id = :userId" +
             ") ORDER BY cr.createdAt DESC")
     List<ChatRoom> findMyRooms(@Param("userId") Long userId);
+
+    @Query("SELECT cr FROM ChatRoom cr LEFT JOIN FETCH cr.team LEFT JOIN FETCH cr.createdBy " +
+            "WHERE cr.team IS NOT NULL AND cr.team.club.company.id = :companyId ORDER BY cr.createdAt DESC")
+    List<ChatRoom> findByTeamClubCompanyId(@Param("companyId") Long companyId);
 }

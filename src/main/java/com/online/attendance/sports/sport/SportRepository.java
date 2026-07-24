@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface SportRepository extends JpaRepository<Sport, Long> {
     List<Sport> findByActiveTrue();
+    List<Sport> findByCompanyId(Long companyId);
+    List<Sport> findByCompanyIdAndActiveTrue(Long companyId);
 }

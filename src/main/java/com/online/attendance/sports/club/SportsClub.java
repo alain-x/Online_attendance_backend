@@ -1,5 +1,6 @@
 package com.online.attendance.sports.club;
 
+import com.online.attendance.company.Company;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -16,10 +17,14 @@ public class SportsClub {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id", nullable = false)
+    private Company company;
+
     @Column(nullable = false, length = 200)
     private String name;
 
-    @Column(nullable = false, length = 100, unique = true)
+    @Column(nullable = false, length = 100)
     private String slug;
 
     @Column(name = "logo_url", length = 500)

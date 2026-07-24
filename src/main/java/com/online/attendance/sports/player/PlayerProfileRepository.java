@@ -23,4 +23,12 @@ public interface PlayerProfileRepository extends JpaRepository<PlayerProfile, Lo
     @EntityGraph(attributePaths = {"user", "club"})
     @Query("SELECT pp FROM PlayerProfile pp JOIN TeamMember tm ON tm.player.id = pp.id WHERE tm.team.id = :teamId")
     List<PlayerProfile> findByTeamId(@Param("teamId") Long teamId);
+
+    @EntityGraph(attributePaths = {"user", "club"})
+    @Query("SELECT pp FROM PlayerProfile pp JOIN pp.club c WHERE c.company.id = :companyId")
+    List<PlayerProfile> findByClubCompanyId(@Param("companyId") Long companyId);
+
+    @EntityGraph(attributePaths = {"user", "club"})
+    @Query("SELECT pp FROM PlayerProfile pp JOIN pp.club c WHERE c.company.id = :companyId AND pp.id = :id")
+    Optional<PlayerProfile> findByIdAndClubCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 }

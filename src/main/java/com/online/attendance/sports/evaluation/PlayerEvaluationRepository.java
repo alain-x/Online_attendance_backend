@@ -2,6 +2,8 @@ package com.online.attendance.sports.evaluation;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,4 +26,12 @@ public interface PlayerEvaluationRepository extends JpaRepository<PlayerEvaluati
 
     @EntityGraph(attributePaths = {"player", "player.user", "evaluator", "team"})
     List<PlayerEvaluation> findByEvaluatorId(Long evaluatorId);
+
+    @EntityGraph(attributePaths = {"player", "player.user", "evaluator", "team"})
+    @Query("SELECT pe FROM PlayerEvaluation pe JOIN pe.team t JOIN t.club c WHERE c.company.id = :companyId")
+    List<PlayerEvaluation> findByClubCompanyId(@Param("companyId") Long companyId);
+
+    @EntityGraph(attributePaths = {"player", "player.user", "evaluator", "team"})
+    @Query("SELECT pe FROM PlayerEvaluation pe JOIN pe.team t JOIN t.club c WHERE c.company.id = :companyId AND pe.id = :id")
+    Optional<PlayerEvaluation> findByIdAndClubCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 }

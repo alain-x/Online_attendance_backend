@@ -2,9 +2,12 @@ package com.online.attendance.sports.schedule;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface CalendarEventRepository extends JpaRepository<CalendarEvent, Long> {
 
@@ -17,4 +20,12 @@ public interface CalendarEventRepository extends JpaRepository<CalendarEvent, Lo
 
     @EntityGraph(attributePaths = {"team", "createdBy"})
     List<CalendarEvent> findByTeamIdAndStartDateTimeBetween(Long teamId, LocalDateTime start, LocalDateTime end);
+
+    @EntityGraph(attributePaths = {"team", "createdBy"})
+    @Query("SELECT ce FROM CalendarEvent ce JOIN ce.team t JOIN t.club c WHERE c.company.id = :companyId")
+    List<CalendarEvent> findByClubCompanyId(@Param("companyId") Long companyId);
+
+    @EntityGraph(attributePaths = {"team", "createdBy"})
+    @Query("SELECT ce FROM CalendarEvent ce JOIN ce.team t JOIN t.club c WHERE c.company.id = :companyId AND ce.id = :id")
+    Optional<CalendarEvent> findByIdAndClubCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 }

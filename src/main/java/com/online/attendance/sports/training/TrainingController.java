@@ -1,5 +1,6 @@
 package com.online.attendance.sports.training;
 
+import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.sports.player.PlayerProfile;
 import com.online.attendance.sports.player.PlayerProfileRepository;
 import com.online.attendance.sports.team.Team;
@@ -12,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,32 +34,43 @@ public class TrainingController {
     private final TeamRepository teamRepository;
     private final UserRepository userRepository;
     private final PlayerProfileRepository playerProfileRepository;
+    private final CurrentCompanyService currentCompanyService;
 
     public TrainingController(TrainingSessionRepository sessionRepository,
                               TrainingAttendanceRepository attendanceRepository,
                               TrainingMaterialRepository materialRepository,
                               TeamRepository teamRepository,
                               UserRepository userRepository,
-                              PlayerProfileRepository playerProfileRepository) {
+                              PlayerProfileRepository playerProfileRepository,
+                              CurrentCompanyService currentCompanyService) {
         this.sessionRepository = sessionRepository;
         this.attendanceRepository = attendanceRepository;
         this.materialRepository = materialRepository;
         this.teamRepository = teamRepository;
         this.userRepository = userRepository;
         this.playerProfileRepository = playerProfileRepository;
+        this.currentCompanyService = currentCompanyService;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/sessions")
     public List<TrainingSessionResponse> listSessions(@RequestParam(required = false) Long teamId,
-                                                       @RequestParam(required = false) Long coachId) {
+                                                       @RequestParam(required = false) Long coachId,
+                                                       Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
         List<TrainingSession> sessions;
         if (teamId != null) {
+            var team = teamRepository.findByIdAndClubCompanyId(teamId, companyId);
+            if (team.isEmpty()) {
+                return List.of();
+            }
             sessions = sessionRepository.findByTeamId(teamId);
         } else if (coachId != null) {
-            sessions = sessionRepository.findByCoachId(coachId);
+            sessions = sessionRepository.findByClubCompanyId(companyId).stream()
+                    .filter(s -> s.getCoach() != null && s.getCoach().getId().equals(coachId))
+                    .collect(Collectors.toList());
         } else {
-            sessions = sessionRepository.findAll();
+            sessions = sessionRepository.findByClubCompanyId(companyId);
         }
         return sessions.stream()
                 .map(s -> TrainingSessionResponse.from(s, attendanceRepository.findBySessionId(s.getId()).size()))
@@ -66,8 +79,9 @@ public class TrainingController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/sessions/{id}")
-    public ResponseEntity<?> getSessionById(@PathVariable Long id) {
-        var session = sessionRepository.findById(id);
+    public ResponseEntity<?> getSessionById(@PathVariable Long id, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var session = sessionRepository.findByIdAndClubCompanyId(id, companyId);
         if (session.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
         }
@@ -77,8 +91,9 @@ public class TrainingController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/sessions")
     @Transactional
-    public ResponseEntity<?> createSession(@Valid @RequestBody CreateTrainingSessionRequest request) {
-        Team team = teamRepository.findById(request.getTeamId()).orElse(null);
+    public ResponseEntity<?> createSession(@Valid @RequestBody CreateTrainingSessionRequest request, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        Team team = teamRepository.findByIdAndClubCompanyId(request.getTeamId(), companyId).orElse(null);
         if (team == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Team not found"));
         }
@@ -102,13 +117,14 @@ public class TrainingController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/sessions/{id}")
     @Transactional
-    public ResponseEntity<?> updateSession(@PathVariable Long id, @Valid @RequestBody CreateTrainingSessionRequest request) {
-        var existing = sessionRepository.findById(id);
+    public ResponseEntity<?> updateSession(@PathVariable Long id, @Valid @RequestBody CreateTrainingSessionRequest request, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var existing = sessionRepository.findByIdAndClubCompanyId(id, companyId);
         if (existing.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
         }
         var session = existing.get();
-        Team team = teamRepository.findById(request.getTeamId()).orElse(null);
+        Team team = teamRepository.findByIdAndClubCompanyId(request.getTeamId(), companyId).orElse(null);
         if (team == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Team not found"));
         }
@@ -130,8 +146,10 @@ public class TrainingController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/sessions/{id}")
     @Transactional
-    public ResponseEntity<?> deleteSession(@PathVariable Long id) {
-        if (!sessionRepository.existsById(id)) {
+    public ResponseEntity<?> deleteSession(@PathVariable Long id, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var session = sessionRepository.findByIdAndClubCompanyId(id, companyId);
+        if (session.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
         }
         sessionRepository.deleteById(id);
@@ -141,14 +159,15 @@ public class TrainingController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/sessions/{sessionId}/attendance")
     @Transactional
-    public ResponseEntity<?> markAttendance(@PathVariable Long sessionId, @Valid @RequestBody List<MarkAttendanceRequest> requests) {
-        TrainingSession session = sessionRepository.findById(sessionId).orElse(null);
+    public ResponseEntity<?> markAttendance(@PathVariable Long sessionId, @Valid @RequestBody List<MarkAttendanceRequest> requests, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        TrainingSession session = sessionRepository.findByIdAndClubCompanyId(sessionId, companyId).orElse(null);
         if (session == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
         }
         List<TrainingAttendance> saved = new java.util.ArrayList<>();
         for (MarkAttendanceRequest req : requests) {
-            PlayerProfile player = playerProfileRepository.findById(req.getPlayerId()).orElse(null);
+            PlayerProfile player = playerProfileRepository.findByIdAndClubCompanyId(req.getPlayerId(), companyId).orElse(null);
             if (player == null) {
                 return ResponseEntity.badRequest().body(Map.of("message", "Player not found: " + req.getPlayerId()));
             }
@@ -168,17 +187,23 @@ public class TrainingController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/sessions/{sessionId}/attendance")
-    public List<TrainingAttendanceResponse> getAttendance(@PathVariable Long sessionId) {
-        return attendanceRepository.findBySessionId(sessionId).stream()
+    public ResponseEntity<?> getAttendance(@PathVariable Long sessionId, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var session = sessionRepository.findByIdAndClubCompanyId(sessionId, companyId);
+        if (session.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
+        }
+        return ResponseEntity.ok(attendanceRepository.findBySessionId(sessionId).stream()
                 .map(TrainingAttendanceResponse::from)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER')")
     @PostMapping("/sessions/{sessionId}/check-in")
     @Transactional
-    public ResponseEntity<?> checkIn(@PathVariable Long sessionId, @RequestBody(required = false) Map<String, Object> body) {
-        TrainingSession session = sessionRepository.findById(sessionId).orElse(null);
+    public ResponseEntity<?> checkIn(@PathVariable Long sessionId, @RequestBody(required = false) Map<String, Object> body, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        TrainingSession session = sessionRepository.findByIdAndClubCompanyId(sessionId, companyId).orElse(null);
         if (session == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
         }
@@ -186,7 +211,7 @@ public class TrainingController {
         if (playerId == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "playerId is required"));
         }
-        PlayerProfile player = playerProfileRepository.findById(playerId).orElse(null);
+        PlayerProfile player = playerProfileRepository.findByIdAndClubCompanyId(playerId, companyId).orElse(null);
         if (player == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Player not found"));
         }
@@ -213,8 +238,9 @@ public class TrainingController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER')")
     @PutMapping("/sessions/{sessionId}/check-out")
     @Transactional
-    public ResponseEntity<?> checkOut(@PathVariable Long sessionId, @RequestBody(required = false) Map<String, Object> body) {
-        TrainingSession session = sessionRepository.findById(sessionId).orElse(null);
+    public ResponseEntity<?> checkOut(@PathVariable Long sessionId, @RequestBody(required = false) Map<String, Object> body, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        TrainingSession session = sessionRepository.findByIdAndClubCompanyId(sessionId, companyId).orElse(null);
         if (session == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
         }
@@ -238,20 +264,32 @@ public class TrainingController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/materials")
-    public List<TrainingMaterialResponse> listMaterials(@RequestParam(required = false) Long teamId) {
+    public ResponseEntity<?> listMaterials(@RequestParam(required = false) Long teamId, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        if (teamId != null) {
+            var team = teamRepository.findByIdAndClubCompanyId(teamId, companyId);
+            if (team.isEmpty()) {
+                return ResponseEntity.ok(List.of());
+            }
+        }
         List<TrainingMaterial> materials;
         if (teamId != null) {
             materials = materialRepository.findByTeamId(teamId);
         } else {
-            materials = materialRepository.findAll();
+            var companyTeams = teamRepository.findByClubCompanyId(companyId);
+            var teamIds = companyTeams.stream().map(Team::getId).collect(Collectors.toSet());
+            materials = materialRepository.findAll().stream()
+                    .filter(m -> teamIds.contains(m.getTeam().getId()))
+                    .collect(Collectors.toList());
         }
-        return materials.stream().map(TrainingMaterialResponse::from).collect(Collectors.toList());
+        return ResponseEntity.ok(materials.stream().map(TrainingMaterialResponse::from).collect(Collectors.toList()));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/materials")
-    public ResponseEntity<?> createMaterial(@Valid @RequestBody CreateTrainingMaterialRequest request) {
-        Team team = teamRepository.findById(request.getTeamId()).orElse(null);
+    public ResponseEntity<?> createMaterial(@Valid @RequestBody CreateTrainingMaterialRequest request, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        Team team = teamRepository.findByIdAndClubCompanyId(request.getTeamId(), companyId).orElse(null);
         if (team == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Team not found"));
         }
@@ -269,8 +307,14 @@ public class TrainingController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/materials/{id}")
-    public ResponseEntity<?> deleteMaterial(@PathVariable Long id) {
-        if (!materialRepository.existsById(id)) {
+    public ResponseEntity<?> deleteMaterial(@PathVariable Long id, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var material = materialRepository.findById(id);
+        if (material.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("message", "Material not found"));
+        }
+        var team = teamRepository.findByIdAndClubCompanyId(material.get().getTeam().getId(), companyId);
+        if (team.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Material not found"));
         }
         materialRepository.deleteById(id);

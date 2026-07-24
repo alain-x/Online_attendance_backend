@@ -57,14 +57,25 @@ public class PlayerController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping
     public List<PlayerResponse> list(@RequestParam(required = false) Long clubId,
-                                     @RequestParam(required = false) Long teamId) {
+                                     @RequestParam(required = false) Long teamId,
+                                     Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
         List<PlayerProfile> players;
         if (teamId != null) {
-            players = playerProfileRepository.findByTeamId(teamId);
+            players = playerProfileRepository.findByClubCompanyId(companyId).stream()
+                    .filter(p -> {
+                        var memberships = teamMemberRepository.findByTeamId(teamId);
+                        return memberships.stream().anyMatch(m -> m.getPlayer().getId().equals(p.getId()));
+                    })
+                    .collect(Collectors.toList());
         } else if (clubId != null) {
+            var club = clubRepository.findByIdAndCompanyId(clubId, companyId);
+            if (club.isEmpty()) {
+                return List.of();
+            }
             players = playerProfileRepository.findByClubId(clubId);
         } else {
-            players = playerProfileRepository.findAll();
+            players = playerProfileRepository.findByClubCompanyId(companyId);
         }
         return players.stream().map(this::toResponse).collect(Collectors.toList());
     }
@@ -87,8 +98,9 @@ public class PlayerController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{id}")
-    public ResponseEntity<?> getById(@PathVariable Long id) {
-        var profile = playerProfileRepository.findById(id);
+    public ResponseEntity<?> getById(@PathVariable Long id, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var profile = playerProfileRepository.findByIdAndClubCompanyId(id, companyId);
         if (profile.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Player not found"));
         }
@@ -98,10 +110,14 @@ public class PlayerController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping
     @Transactional
-    public ResponseEntity<?> create(@Valid @RequestBody CreatePlayerRequest request) {
+    public ResponseEntity<?> create(@Valid @RequestBody CreatePlayerRequest request, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
         AppUser user = userRepository.findById(request.getUserId()).orElse(null);
         if (user == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "User not found"));
+        }
+        if (user.getCompany() == null || !user.getCompany().getId().equals(companyId)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "User does not belong to your company"));
         }
         if (playerProfileRepository.findByUserId(request.getUserId()).isPresent()) {
             return ResponseEntity.status(409).body(Map.of("message", "Player profile already exists for this user"));
@@ -110,7 +126,7 @@ public class PlayerController {
         if (employee == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Employee record not found for this user"));
         }
-        SportsClub club = clubRepository.findById(request.getClubId()).orElse(null);
+        SportsClub club = clubRepository.findByIdAndCompanyId(request.getClubId(), companyId).orElse(null);
         if (club == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Club not found"));
         }
@@ -130,13 +146,14 @@ public class PlayerController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/{id}")
     @Transactional
-    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreatePlayerRequest request) {
-        var existing = playerProfileRepository.findById(id);
+    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreatePlayerRequest request, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var existing = playerProfileRepository.findByIdAndClubCompanyId(id, companyId);
         if (existing.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Player not found"));
         }
         var profile = existing.get();
-        SportsClub club = clubRepository.findById(request.getClubId()).orElse(null);
+        SportsClub club = clubRepository.findByIdAndCompanyId(request.getClubId(), companyId).orElse(null);
         if (club == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Club not found"));
         }
@@ -153,8 +170,10 @@ public class PlayerController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @DeleteMapping("/{id}")
     @Transactional
-    public ResponseEntity<?> delete(@PathVariable Long id) {
-        if (!playerProfileRepository.existsById(id)) {
+    public ResponseEntity<?> delete(@PathVariable Long id, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var player = playerProfileRepository.findByIdAndClubCompanyId(id, companyId);
+        if (player.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Player not found"));
         }
         playerProfileRepository.deleteById(id);
@@ -163,16 +182,22 @@ public class PlayerController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{id}/statistics")
-    public List<PlayerStatisticResponse> getStatistics(@PathVariable Long id) {
-        return playerStatisticRepository.findByPlayerId(id).stream()
+    public ResponseEntity<?> getStatistics(@PathVariable Long id, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var player = playerProfileRepository.findByIdAndClubCompanyId(id, companyId);
+        if (player.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("message", "Player not found"));
+        }
+        return ResponseEntity.ok(playerStatisticRepository.findByPlayerId(id).stream()
                 .map(PlayerStatisticResponse::from)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/{id}/statistics")
-    public ResponseEntity<?> updateStatistics(@PathVariable Long id, @Valid @RequestBody PlayerStatisticResponse request) {
-        PlayerProfile player = playerProfileRepository.findById(id).orElse(null);
+    public ResponseEntity<?> updateStatistics(@PathVariable Long id, @Valid @RequestBody PlayerStatisticResponse request, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        PlayerProfile player = playerProfileRepository.findByIdAndClubCompanyId(id, companyId).orElse(null);
         if (player == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Player not found"));
         }

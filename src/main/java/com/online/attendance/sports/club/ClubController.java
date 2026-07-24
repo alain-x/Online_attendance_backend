@@ -1,5 +1,7 @@
 package com.online.attendance.sports.club;
 
+import com.online.attendance.company.CompanyRepository;
+import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.sports.club.dto.ClubResponse;
 import com.online.attendance.sports.club.dto.CreateClubRequest;
 import jakarta.validation.Valid;
@@ -7,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,23 +24,31 @@ public class ClubController {
 
     private static final Logger log = LoggerFactory.getLogger(ClubController.class);
     private final SportsClubRepository clubRepository;
+    private final CompanyRepository companyRepository;
+    private final CurrentCompanyService currentCompanyService;
 
-    public ClubController(SportsClubRepository clubRepository) {
+    public ClubController(SportsClubRepository clubRepository,
+                          CompanyRepository companyRepository,
+                          CurrentCompanyService currentCompanyService) {
         this.clubRepository = clubRepository;
+        this.companyRepository = companyRepository;
+        this.currentCompanyService = currentCompanyService;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping
-    public List<ClubResponse> list() {
-        return clubRepository.findAll().stream()
+    public List<ClubResponse> list(Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        return clubRepository.findByCompanyId(companyId).stream()
                 .map(ClubResponse::from)
                 .collect(Collectors.toList());
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{id}")
-    public ResponseEntity<?> getById(@PathVariable Long id) {
-        var club = clubRepository.findById(id);
+    public ResponseEntity<?> getById(@PathVariable Long id, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var club = clubRepository.findByIdAndCompanyId(id, companyId);
         if (club.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Club not found"));
         }
@@ -47,11 +58,13 @@ public class ClubController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PostMapping
     @Transactional
-    public ResponseEntity<?> create(@Valid @RequestBody CreateClubRequest request) {
-        if (clubRepository.existsBySlug(request.getSlug())) {
+    public ResponseEntity<?> create(@Valid @RequestBody CreateClubRequest request, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        if (clubRepository.existsBySlugAndCompanyId(request.getSlug(), companyId)) {
             return ResponseEntity.status(409).body(Map.of("message", "Slug already exists"));
         }
         SportsClub club = SportsClub.builder()
+                .company(companyRepository.getReferenceById(companyId))
                 .name(request.getName())
                 .slug(request.getSlug())
                 .description(request.getDescription())
@@ -66,13 +79,14 @@ public class ClubController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @PutMapping("/{id}")
     @Transactional
-    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateClubRequest request) {
-        var existing = clubRepository.findById(id);
+    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateClubRequest request, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var existing = clubRepository.findByIdAndCompanyId(id, companyId);
         if (existing.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Club not found"));
         }
         var club = existing.get();
-        if (!club.getSlug().equals(request.getSlug()) && clubRepository.existsBySlug(request.getSlug())) {
+        if (!club.getSlug().equals(request.getSlug()) && clubRepository.existsBySlugAndCompanyId(request.getSlug(), companyId)) {
             return ResponseEntity.status(409).body(Map.of("message", "Slug already exists"));
         }
         club.setName(request.getName());
@@ -87,8 +101,10 @@ public class ClubController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN')")
     @DeleteMapping("/{id}")
     @Transactional
-    public ResponseEntity<?> delete(@PathVariable Long id) {
-        if (!clubRepository.existsById(id)) {
+    public ResponseEntity<?> delete(@PathVariable Long id, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var club = clubRepository.findByIdAndCompanyId(id, companyId);
+        if (club.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Club not found"));
         }
         clubRepository.deleteById(id);

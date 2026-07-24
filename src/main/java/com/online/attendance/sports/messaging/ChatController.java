@@ -78,8 +78,27 @@ public class ChatController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/rooms/all")
-    public List<ChatRoomResponse> listAllRooms() {
-        return roomRepository.findAll().stream().map(this::toRoomResponse).collect(Collectors.toList());
+    public ResponseEntity<?> listAllRooms(Authentication authentication) {
+        AppUser user = resolveUser(authentication);
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
+        }
+        Long companyId = user.getCompany() != null ? user.getCompany().getId() : null;
+        Set<Long> roomIds = new HashSet<>();
+        List<ChatRoomResponse> result = new ArrayList<>();
+        if (companyId != null) {
+            for (ChatRoom r : roomRepository.findByTeamClubCompanyId(companyId)) {
+                if (roomIds.add(r.getId())) {
+                    result.add(toRoomResponse(r));
+                }
+            }
+        }
+        for (ChatRoom r : roomRepository.findMyRooms(user.getId())) {
+            if (roomIds.add(r.getId())) {
+                result.add(toRoomResponse(r));
+            }
+        }
+        return ResponseEntity.ok(result);
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
@@ -150,6 +169,10 @@ public class ChatController {
             if (target == null) {
                 return ResponseEntity.badRequest().body(Map.of("message", "User not found"));
             }
+            if (current.getCompany() == null || target.getCompany() == null
+                    || !current.getCompany().getId().equals(target.getCompany().getId())) {
+                return ResponseEntity.status(403).body(Map.of("message", "Cannot create chat with user from a different company"));
+            }
 
             List<ChatRoom> existing = roomRepository.findDirectChat(current.getId(), targetUserId);
             if (!existing.isEmpty()) {
@@ -192,7 +215,11 @@ public class ChatController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @PostMapping("/rooms/{roomId}/participants")
     @Transactional
-    public ResponseEntity<?> addParticipant(@PathVariable Long roomId, @RequestBody Map<String, Long> body) {
+    public ResponseEntity<?> addParticipant(Authentication authentication, @PathVariable Long roomId, @RequestBody Map<String, Long> body) {
+        AppUser caller = resolveUser(authentication);
+        if (caller == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
+        }
         ChatRoom room = roomRepository.findById(roomId).orElse(null);
         if (room == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Room not found"));
@@ -204,6 +231,10 @@ public class ChatController {
         AppUser user = userRepository.findById(userId).orElse(null);
         if (user == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "User not found"));
+        }
+        if (caller.getCompany() == null || user.getCompany() == null
+                || !caller.getCompany().getId().equals(user.getCompany().getId())) {
+            return ResponseEntity.status(403).body(Map.of("message", "Cannot add user from a different company"));
         }
         boolean alreadyParticipant = participantRepository.findByRoomId(roomId).stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
@@ -369,7 +400,11 @@ public class ChatController {
             return ResponseEntity.status(401).body(Map.of("message", "User not authenticated"));
         }
         String q = query.trim().toLowerCase();
-        return ResponseEntity.ok(userRepository.findAll().stream()
+        Long companyId = current.getCompany() != null ? current.getCompany().getId() : null;
+        List<AppUser> candidates = companyId != null
+                ? userRepository.findAllByCompanyId(companyId)
+                : userRepository.findAll();
+        return ResponseEntity.ok(candidates.stream()
                 .filter(u -> !u.getId().equals(current.getId()))
                 .filter(u -> u.getUsername().toLowerCase().contains(q)
                         || (u.getEmail() != null && u.getEmail().toLowerCase().contains(q)))

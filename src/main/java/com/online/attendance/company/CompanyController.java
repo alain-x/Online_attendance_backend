@@ -182,7 +182,14 @@ public class CompanyController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','ADMIN')")
     @PutMapping("/{id}/active")
-    public ResponseEntity<?> setActive(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> setActive(Authentication authentication, @PathVariable Long id, @RequestBody Map<String, Object> body) {
+        CompanyResponse summary = companyRepository.findResponseById(id).orElse(null);
+        if (summary == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!canManageCompany(authentication, summary.id(), summary.parentCompanyId())) {
+            return ResponseEntity.status(403).body(Map.of("message", "You can only manage your own company account"));
+        }
         Company company = companyRepository.findById(id).orElse(null);
         if (company == null) {
             return ResponseEntity.notFound().build();

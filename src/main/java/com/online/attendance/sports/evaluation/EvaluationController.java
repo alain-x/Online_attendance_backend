@@ -1,5 +1,6 @@
 package com.online.attendance.sports.evaluation;
 
+import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.sports.evaluation.dto.AddCriterionRequest;
 import com.online.attendance.sports.evaluation.dto.CreateEvaluationRequest;
 import com.online.attendance.sports.evaluation.dto.EvaluationResponse;
@@ -34,30 +35,43 @@ public class EvaluationController {
     private final PlayerProfileRepository playerProfileRepository;
     private final TeamRepository teamRepository;
     private final UserRepository userRepository;
+    private final CurrentCompanyService currentCompanyService;
 
     public EvaluationController(PlayerEvaluationRepository evaluationRepository,
                                 EvaluationCriterionRepository criterionRepository,
                                 PlayerProfileRepository playerProfileRepository,
                                 TeamRepository teamRepository,
-                                UserRepository userRepository) {
+                                UserRepository userRepository,
+                                CurrentCompanyService currentCompanyService) {
         this.evaluationRepository = evaluationRepository;
         this.criterionRepository = criterionRepository;
         this.playerProfileRepository = playerProfileRepository;
         this.teamRepository = teamRepository;
         this.userRepository = userRepository;
+        this.currentCompanyService = currentCompanyService;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping
     public List<EvaluationResponse> list(@RequestParam(required = false) Long playerId,
-                                          @RequestParam(required = false) Long teamId) {
+                                          @RequestParam(required = false) Long teamId,
+                                          Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
         List<PlayerEvaluation> evaluations;
         if (playerId != null) {
+            var player = playerProfileRepository.findByIdAndClubCompanyId(playerId, companyId);
+            if (player.isEmpty()) {
+                return List.of();
+            }
             evaluations = evaluationRepository.findByPlayerId(playerId);
         } else if (teamId != null) {
+            var team = teamRepository.findByIdAndClubCompanyId(teamId, companyId);
+            if (team.isEmpty()) {
+                return List.of();
+            }
             evaluations = evaluationRepository.findByTeamId(teamId);
         } else {
-            evaluations = evaluationRepository.findAll();
+            evaluations = evaluationRepository.findByClubCompanyId(companyId);
         }
         return evaluations.stream()
                 .map(e -> EvaluationResponse.from(e, criterionRepository.findByEvaluationId(e.getId())))
@@ -66,8 +80,9 @@ public class EvaluationController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/{id}")
-    public ResponseEntity<?> getById(@PathVariable Long id) {
-        var evaluation = evaluationRepository.findById(id);
+    public ResponseEntity<?> getById(@PathVariable Long id, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var evaluation = evaluationRepository.findByIdAndClubCompanyId(id, companyId);
         if (evaluation.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Evaluation not found"));
         }
@@ -78,11 +93,12 @@ public class EvaluationController {
     @PostMapping
     @Transactional
     public ResponseEntity<?> create(Authentication authentication, @Valid @RequestBody CreateEvaluationRequest request) {
-        PlayerProfile player = playerProfileRepository.findById(request.getPlayerId()).orElse(null);
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        PlayerProfile player = playerProfileRepository.findByIdAndClubCompanyId(request.getPlayerId(), companyId).orElse(null);
         if (player == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Player not found"));
         }
-        Team team = teamRepository.findById(request.getTeamId()).orElse(null);
+        Team team = teamRepository.findByIdAndClubCompanyId(request.getTeamId(), companyId).orElse(null);
         if (team == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Team not found"));
         }
@@ -125,13 +141,14 @@ public class EvaluationController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PutMapping("/{id}")
     @Transactional
-    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateEvaluationRequest request) {
-        var existing = evaluationRepository.findById(id);
+    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CreateEvaluationRequest request, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var existing = evaluationRepository.findByIdAndClubCompanyId(id, companyId);
         if (existing.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Evaluation not found"));
         }
         var evaluation = existing.get();
-        Team team = teamRepository.findById(request.getTeamId()).orElse(null);
+        Team team = teamRepository.findByIdAndClubCompanyId(request.getTeamId(), companyId).orElse(null);
         if (team == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Team not found"));
         }
@@ -152,8 +169,10 @@ public class EvaluationController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @DeleteMapping("/{id}")
     @Transactional
-    public ResponseEntity<?> delete(@PathVariable Long id) {
-        if (!evaluationRepository.existsById(id)) {
+    public ResponseEntity<?> delete(@PathVariable Long id, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        var evaluation = evaluationRepository.findByIdAndClubCompanyId(id, companyId);
+        if (evaluation.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "Evaluation not found"));
         }
         evaluationRepository.deleteById(id);
@@ -163,8 +182,9 @@ public class EvaluationController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @PostMapping("/{evaluationId}/criteria")
     @Transactional
-    public ResponseEntity<?> addCriterion(@PathVariable Long evaluationId, @Valid @RequestBody AddCriterionRequest request) {
-        PlayerEvaluation evaluation = evaluationRepository.findById(evaluationId).orElse(null);
+    public ResponseEntity<?> addCriterion(@PathVariable Long evaluationId, @Valid @RequestBody AddCriterionRequest request, Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        PlayerEvaluation evaluation = evaluationRepository.findByIdAndClubCompanyId(evaluationId, companyId).orElse(null);
         if (evaluation == null) {
             return ResponseEntity.status(404).body(Map.of("message", "Evaluation not found"));
         }

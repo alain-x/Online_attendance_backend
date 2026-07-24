@@ -1,5 +1,6 @@
 package com.online.attendance.sports.analytics;
 
+import com.online.attendance.security.CurrentCompanyService;
 import com.online.attendance.sports.match.MatchEventRepository;
 import com.online.attendance.sports.match.MatchRepository;
 import com.online.attendance.sports.payment.PlayerPaymentRepository;
@@ -13,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,15 +36,17 @@ public class SportsAnalyticsController {
     private final TrainingAttendanceRepository trainingAttendanceRepository;
     private final PlayerStatisticRepository playerStatisticRepository;
     private final PlayerPaymentRepository playerPaymentRepository;
+    private final CurrentCompanyService currentCompanyService;
 
     public SportsAnalyticsController(PlayerProfileRepository playerProfileRepository,
-                               TeamRepository teamRepository,
-                               MatchRepository matchRepository,
-                               MatchEventRepository matchEventRepository,
-                               TrainingSessionRepository trainingSessionRepository,
-                               TrainingAttendanceRepository trainingAttendanceRepository,
-                               PlayerStatisticRepository playerStatisticRepository,
-                               PlayerPaymentRepository playerPaymentRepository) {
+                                TeamRepository teamRepository,
+                                MatchRepository matchRepository,
+                                MatchEventRepository matchEventRepository,
+                                TrainingSessionRepository trainingSessionRepository,
+                                TrainingAttendanceRepository trainingAttendanceRepository,
+                                PlayerStatisticRepository playerStatisticRepository,
+                                PlayerPaymentRepository playerPaymentRepository,
+                                CurrentCompanyService currentCompanyService) {
         this.playerProfileRepository = playerProfileRepository;
         this.teamRepository = teamRepository;
         this.matchRepository = matchRepository;
@@ -51,21 +55,23 @@ public class SportsAnalyticsController {
         this.trainingAttendanceRepository = trainingAttendanceRepository;
         this.playerStatisticRepository = playerStatisticRepository;
         this.playerPaymentRepository = playerPaymentRepository;
+        this.currentCompanyService = currentCompanyService;
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @GetMapping("/dashboard")
-    public Map<String, Object> dashboard(@RequestParam(required = false) Long clubId) {
+    public Map<String, Object> dashboard(Authentication authentication, @RequestParam(required = false) Long clubId) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
         Map<String, Object> data = new HashMap<>();
 
         long totalPlayers = clubId != null
                 ? playerProfileRepository.findByClubId(clubId).size()
-                : playerProfileRepository.count();
+                : playerProfileRepository.findByClubCompanyId(companyId).size();
         data.put("totalPlayers", totalPlayers);
 
         long totalTeams = clubId != null
                 ? teamRepository.findByClubId(clubId).size()
-                : teamRepository.count();
+                : teamRepository.findByClubCompanyId(companyId).size();
         data.put("totalTeams", totalTeams);
 
         LocalDateTime now = LocalDateTime.now();
@@ -78,7 +84,10 @@ public class SportsAnalyticsController {
                     .mapToLong(t -> matchRepository.findByTeamIdAndMatchDateBetween(t.getId(), now, weekEnd).size())
                     .sum();
         } else {
-            upcomingMatches = 0;
+            var teams = teamRepository.findByClubCompanyId(companyId);
+            upcomingMatches = teams.stream()
+                    .mapToLong(t -> matchRepository.findByTeamIdAndMatchDateBetween(t.getId(), now, weekEnd).size())
+                    .sum();
         }
         data.put("upcomingMatches", upcomingMatches);
 
@@ -89,11 +98,14 @@ public class SportsAnalyticsController {
                     .mapToLong(t -> trainingSessionRepository.findByTeamIdAndStartTimeBetween(t.getId(), now, weekEnd).size())
                     .sum();
         } else {
-            upcomingTraining = 0;
+            var teams = teamRepository.findByClubCompanyId(companyId);
+            upcomingTraining = teams.stream()
+                    .mapToLong(t -> trainingSessionRepository.findByTeamIdAndStartTimeBetween(t.getId(), now, weekEnd).size())
+                    .sum();
         }
         data.put("upcomingTrainingSessions", upcomingTraining);
 
-        long recentPayments = playerPaymentRepository.findAll().size();
+        long recentPayments = playerPaymentRepository.findByClubCompanyId(companyId).size();
         data.put("recentPayments", recentPayments);
 
         return data;
@@ -101,7 +113,11 @@ public class SportsAnalyticsController {
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/player/{playerId}")
-    public Map<String, Object> playerStats(@PathVariable Long playerId) {
+    public ResponseEntity<?> playerStats(Authentication authentication, @PathVariable Long playerId) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        if (playerProfileRepository.findByIdAndClubCompanyId(playerId, companyId).isEmpty()) {
+            return ResponseEntity.status(403).body(Map.of("message", "Player not found in your company"));
+        }
         Map<String, Object> data = new HashMap<>();
 
         var stats = playerStatisticRepository.findByPlayerId(playerId);
@@ -123,12 +139,16 @@ public class SportsAnalyticsController {
         long pendingCount = payments.stream().filter(p -> "PENDING".equals(p.getStatus())).count();
         data.put("pendingPayments", pendingCount);
 
-        return data;
+        return ResponseEntity.ok(data);
     }
 
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER')")
     @GetMapping("/team/{teamId}")
-    public Map<String, Object> teamStats(@PathVariable Long teamId) {
+    public ResponseEntity<?> teamStats(Authentication authentication, @PathVariable Long teamId) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        if (teamRepository.findByIdAndClubCompanyId(teamId, companyId).isEmpty()) {
+            return ResponseEntity.status(403).body(Map.of("message", "Team not found in your company"));
+        }
         Map<String, Object> data = new HashMap<>();
 
         var matches = matchRepository.findByTeamId(teamId);
@@ -158,12 +178,9 @@ public class SportsAnalyticsController {
                 .sum();
         data.put("totalAttendanceRecords", totalAttendance);
 
-        var payments = playerPaymentRepository.findAll();
-        data.put("teamPayments", payments.stream()
-                .filter(p -> p.getFee() != null && p.getFee().getTeam() != null
-                        && p.getFee().getTeam().getId().equals(teamId))
-                .count());
+        var payments = playerPaymentRepository.findByFeeTeamId(teamId);
+        data.put("teamPayments", payments.size());
 
-        return data;
+        return ResponseEntity.ok(data);
     }
 }
