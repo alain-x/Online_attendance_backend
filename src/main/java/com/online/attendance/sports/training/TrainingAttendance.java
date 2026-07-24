@@ -35,6 +35,15 @@ public class TrainingAttendance {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    @Column(length = 500)
+    private String reason;
+
+    @Column(name = "checkin_reason", length = 500)
+    private String checkinReason;
+
+    @Column(name = "checkout_reason", length = 500)
+    private String checkoutReason;
+
     @Column(name = "checked_in_at")
     private Instant checkedInAt;
 

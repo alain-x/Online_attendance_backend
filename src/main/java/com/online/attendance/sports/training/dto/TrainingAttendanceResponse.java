@@ -11,6 +11,8 @@ public record TrainingAttendanceResponse(
         String playerName,
         String status,
         String notes,
+        String checkinReason,
+        String checkoutReason,
         Instant checkedInAt,
         Instant checkedOutAt
 ) {
@@ -22,6 +24,8 @@ public record TrainingAttendanceResponse(
                 attendance.getPlayer() != null && attendance.getPlayer().getUser() != null ? attendance.getPlayer().getUser().getUsername() : null,
                 attendance.getStatus(),
                 attendance.getNotes(),
+                attendance.getCheckinReason(),
+                attendance.getCheckoutReason(),
                 attendance.getCheckedInAt(),
                 attendance.getCheckedOutAt()
         );

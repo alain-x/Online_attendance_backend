@@ -218,15 +218,18 @@ public class TrainingController {
         TrainingAttendance attendance = attendanceRepository.findBySessionId(sessionId).stream()
                 .filter(a -> a.getPlayer().getId().equals(playerId))
                 .findFirst().orElse(null);
+        String reason = body != null && body.get("reason") != null ? String.valueOf(body.get("reason")) : null;
         if (attendance == null) {
             attendance = TrainingAttendance.builder()
                     .session(session)
                     .player(player)
                     .status("PRESENT")
+                    .checkinReason(reason)
                     .checkedInAt(Instant.now())
                     .build();
         } else {
             attendance.setCheckedInAt(Instant.now());
+            attendance.setCheckinReason(reason);
             if ("ABSENT".equals(attendance.getStatus())) {
                 attendance.setStatus("PRESENT");
             }
@@ -257,7 +260,9 @@ public class TrainingController {
         if (attendance.getCheckedInAt() == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "No check-in time recorded. Please check in first."));
         }
+        String reason = body != null && body.get("reason") != null ? String.valueOf(body.get("reason")) : null;
         attendance.setCheckedOutAt(Instant.now());
+        attendance.setCheckoutReason(reason);
         attendance = attendanceRepository.save(attendance);
         return ResponseEntity.ok(TrainingAttendanceResponse.from(attendance));
     }
