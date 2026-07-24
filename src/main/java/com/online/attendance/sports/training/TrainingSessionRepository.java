@@ -24,11 +24,9 @@ public interface TrainingSessionRepository extends JpaRepository<TrainingSession
     @EntityGraph(attributePaths = {"team", "coach"})
     List<TrainingSession> findByTeamIdAndStartTimeBetween(Long teamId, LocalDateTime start, LocalDateTime end);
 
-    @EntityGraph(attributePaths = {"team", "coach"})
-    @Query("SELECT ts FROM TrainingSession ts JOIN ts.team t JOIN t.club c WHERE c.company.id = :companyId")
+    @Query("SELECT ts FROM TrainingSession ts JOIN FETCH ts.team LEFT JOIN FETCH ts.coach WHERE ts.team.club.company.id = :companyId")
     List<TrainingSession> findByClubCompanyId(@Param("companyId") Long companyId);
 
-    @EntityGraph(attributePaths = {"team", "coach"})
-    @Query("SELECT ts FROM TrainingSession ts JOIN ts.team t JOIN t.club c WHERE c.company.id = :companyId AND ts.id = :id")
+    @Query("SELECT ts FROM TrainingSession ts JOIN FETCH ts.team LEFT JOIN FETCH ts.coach WHERE ts.id = :id AND ts.team.club.company.id = :companyId")
     Optional<TrainingSession> findByIdAndClubCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 }

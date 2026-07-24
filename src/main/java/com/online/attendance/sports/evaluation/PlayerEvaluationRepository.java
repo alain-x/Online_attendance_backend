@@ -27,11 +27,9 @@ public interface PlayerEvaluationRepository extends JpaRepository<PlayerEvaluati
     @EntityGraph(attributePaths = {"player", "player.user", "evaluator", "team"})
     List<PlayerEvaluation> findByEvaluatorId(Long evaluatorId);
 
-    @EntityGraph(attributePaths = {"player", "player.user", "evaluator", "team"})
-    @Query("SELECT pe FROM PlayerEvaluation pe JOIN pe.team t JOIN t.club c WHERE c.company.id = :companyId")
+    @Query("SELECT pe FROM PlayerEvaluation pe JOIN FETCH pe.team LEFT JOIN FETCH pe.player LEFT JOIN FETCH pe.player.user LEFT JOIN FETCH pe.evaluator WHERE pe.team.club.company.id = :companyId")
     List<PlayerEvaluation> findByClubCompanyId(@Param("companyId") Long companyId);
 
-    @EntityGraph(attributePaths = {"player", "player.user", "evaluator", "team"})
-    @Query("SELECT pe FROM PlayerEvaluation pe JOIN pe.team t JOIN t.club c WHERE c.company.id = :companyId AND pe.id = :id")
+    @Query("SELECT pe FROM PlayerEvaluation pe JOIN FETCH pe.team LEFT JOIN FETCH pe.player LEFT JOIN FETCH pe.player.user LEFT JOIN FETCH pe.evaluator WHERE pe.id = :id AND pe.team.club.company.id = :companyId")
     Optional<PlayerEvaluation> findByIdAndClubCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 }

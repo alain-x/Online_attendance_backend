@@ -20,11 +20,9 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
     @EntityGraph(attributePaths = {"team", "player", "player.user"})
     Optional<TeamMember> findById(Long id);
 
-    @EntityGraph(attributePaths = {"team", "player", "player.user"})
-    @Query("SELECT tm FROM TeamMember tm JOIN tm.team t JOIN t.club c WHERE c.company.id = :companyId")
+    @Query("SELECT tm FROM TeamMember tm JOIN FETCH tm.team LEFT JOIN FETCH tm.player LEFT JOIN FETCH tm.player.user WHERE tm.team.club.company.id = :companyId")
     List<TeamMember> findByClubCompanyId(@Param("companyId") Long companyId);
 
-    @EntityGraph(attributePaths = {"team", "player", "player.user"})
-    @Query("SELECT tm FROM TeamMember tm JOIN tm.team t JOIN t.club c WHERE c.company.id = :companyId AND tm.id = :id")
+    @Query("SELECT tm FROM TeamMember tm JOIN FETCH tm.team LEFT JOIN FETCH tm.player LEFT JOIN FETCH tm.player.user WHERE tm.id = :id AND tm.team.club.company.id = :companyId")
     Optional<TeamMember> findByIdAndClubCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 }

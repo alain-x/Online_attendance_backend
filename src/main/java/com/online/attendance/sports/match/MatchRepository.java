@@ -21,11 +21,9 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     @EntityGraph(attributePaths = {"team"})
     List<Match> findByTeamIdAndMatchDateBetween(Long teamId, LocalDateTime start, LocalDateTime end);
 
-    @EntityGraph(attributePaths = {"team"})
-    @Query("SELECT m FROM Match m JOIN m.team t JOIN t.club c WHERE c.company.id = :companyId")
+    @Query("SELECT m FROM Match m JOIN FETCH m.team WHERE m.team.club.company.id = :companyId")
     List<Match> findByClubCompanyId(@Param("companyId") Long companyId);
 
-    @EntityGraph(attributePaths = {"team"})
-    @Query("SELECT m FROM Match m JOIN m.team t JOIN t.club c WHERE c.company.id = :companyId AND m.id = :id")
+    @Query("SELECT m FROM Match m JOIN FETCH m.team WHERE m.id = :id AND m.team.club.company.id = :companyId")
     Optional<Match> findByIdAndClubCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 }

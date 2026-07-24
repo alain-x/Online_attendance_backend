@@ -21,11 +21,9 @@ public interface CalendarEventRepository extends JpaRepository<CalendarEvent, Lo
     @EntityGraph(attributePaths = {"team", "createdBy"})
     List<CalendarEvent> findByTeamIdAndStartDateTimeBetween(Long teamId, LocalDateTime start, LocalDateTime end);
 
-    @EntityGraph(attributePaths = {"team", "createdBy"})
-    @Query("SELECT ce FROM CalendarEvent ce JOIN ce.team t JOIN t.club c WHERE c.company.id = :companyId")
+    @Query("SELECT ce FROM CalendarEvent ce JOIN FETCH ce.team LEFT JOIN FETCH ce.createdBy WHERE ce.team.club.company.id = :companyId")
     List<CalendarEvent> findByClubCompanyId(@Param("companyId") Long companyId);
 
-    @EntityGraph(attributePaths = {"team", "createdBy"})
-    @Query("SELECT ce FROM CalendarEvent ce JOIN ce.team t JOIN t.club c WHERE c.company.id = :companyId AND ce.id = :id")
+    @Query("SELECT ce FROM CalendarEvent ce JOIN FETCH ce.team LEFT JOIN FETCH ce.createdBy WHERE ce.id = :id AND ce.team.club.company.id = :companyId")
     Optional<CalendarEvent> findByIdAndClubCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 }

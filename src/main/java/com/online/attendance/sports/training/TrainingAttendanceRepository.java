@@ -20,11 +20,9 @@ public interface TrainingAttendanceRepository extends JpaRepository<TrainingAtte
     @EntityGraph(attributePaths = {"session", "player", "player.user"})
     List<TrainingAttendance> findByPlayerId(Long playerId);
 
-    @EntityGraph(attributePaths = {"session", "player", "player.user"})
-    @Query("SELECT ta FROM TrainingAttendance ta JOIN ta.session s JOIN s.team t JOIN t.club c WHERE c.company.id = :companyId")
+    @Query("SELECT ta FROM TrainingAttendance ta JOIN FETCH ta.session s JOIN FETCH s.team LEFT JOIN FETCH ta.player LEFT JOIN FETCH ta.player.user WHERE s.team.club.company.id = :companyId")
     List<TrainingAttendance> findByClubCompanyId(@Param("companyId") Long companyId);
 
-    @EntityGraph(attributePaths = {"session", "player", "player.user"})
-    @Query("SELECT ta FROM TrainingAttendance ta JOIN ta.session s JOIN s.team t JOIN t.club c WHERE c.company.id = :companyId AND ta.id = :id")
+    @Query("SELECT ta FROM TrainingAttendance ta JOIN FETCH ta.session s JOIN FETCH s.team LEFT JOIN FETCH ta.player LEFT JOIN FETCH ta.player.user WHERE ta.id = :id AND s.team.club.company.id = :companyId")
     Optional<TrainingAttendance> findByIdAndClubCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 }
