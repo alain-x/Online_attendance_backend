@@ -25,4 +25,12 @@ public class CreateEvaluationRequest {
     private String coachNotes;
 
     private String goals;
+
+    private Double avgSpeedKmh;
+
+    private Double maxSpeedKmh;
+
+    private Double totalDistanceKm;
+
+    private Integer totalTrainingMinutes;
 }

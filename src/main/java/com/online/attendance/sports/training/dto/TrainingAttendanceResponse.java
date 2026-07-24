@@ -2,13 +2,17 @@ package com.online.attendance.sports.training.dto;
 
 import com.online.attendance.sports.training.TrainingAttendance;
 
+import java.time.Instant;
+
 public record TrainingAttendanceResponse(
         Long id,
         Long sessionId,
         Long playerId,
         String playerName,
         String status,
-        String notes
+        String notes,
+        Instant checkedInAt,
+        Instant checkedOutAt
 ) {
     public static TrainingAttendanceResponse from(TrainingAttendance attendance) {
         return new TrainingAttendanceResponse(
@@ -17,7 +21,9 @@ public record TrainingAttendanceResponse(
                 attendance.getPlayer() != null ? attendance.getPlayer().getId() : null,
                 attendance.getPlayer() != null && attendance.getPlayer().getUser() != null ? attendance.getPlayer().getUser().getUsername() : null,
                 attendance.getStatus(),
-                attendance.getNotes()
+                attendance.getNotes(),
+                attendance.getCheckedInAt(),
+                attendance.getCheckedOutAt()
         );
     }
 }

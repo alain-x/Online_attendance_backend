@@ -4,6 +4,8 @@ import com.online.attendance.sports.player.PlayerProfile;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
+
 @Entity
 @Table(name = "sports_training_attendance", uniqueConstraints = {
         @UniqueConstraint(name = "uk_training_attendance", columnNames = {"session_id", "player_id"})
@@ -32,4 +34,10 @@ public class TrainingAttendance {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    @Column(name = "checked_in_at")
+    private Instant checkedInAt;
+
+    @Column(name = "checked_out_at")
+    private Instant checkedOutAt;
 }

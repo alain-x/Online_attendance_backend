@@ -18,6 +18,10 @@ public record EvaluationResponse(
         Integer overallRating,
         String coachNotes,
         String goals,
+        Double avgSpeedKmh,
+        Double maxSpeedKmh,
+        Double totalDistanceKm,
+        Integer totalTrainingMinutes,
         List<CriterionDto> criteria,
         Instant createdAt,
         Instant updatedAt
@@ -38,6 +42,10 @@ public record EvaluationResponse(
                 evaluation.getOverallRating(),
                 evaluation.getCoachNotes(),
                 evaluation.getGoals(),
+                evaluation.getAvgSpeedKmh(),
+                evaluation.getMaxSpeedKmh(),
+                evaluation.getTotalDistanceKm(),
+                evaluation.getTotalTrainingMinutes(),
                 criterionDtos,
                 evaluation.getCreatedAt(),
                 evaluation.getUpdatedAt()

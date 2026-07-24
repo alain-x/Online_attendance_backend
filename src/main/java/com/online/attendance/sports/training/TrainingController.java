@@ -174,6 +174,68 @@ public class TrainingController {
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER')")
+    @PostMapping("/sessions/{sessionId}/check-in")
+    @Transactional
+    public ResponseEntity<?> checkIn(@PathVariable Long sessionId, @RequestBody(required = false) Map<String, Object> body) {
+        TrainingSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
+        }
+        Long playerId = body != null && body.get("playerId") != null ? ((Number) body.get("playerId")).longValue() : null;
+        if (playerId == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "playerId is required"));
+        }
+        PlayerProfile player = playerProfileRepository.findById(playerId).orElse(null);
+        if (player == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Player not found"));
+        }
+        TrainingAttendance attendance = attendanceRepository.findBySessionId(sessionId).stream()
+                .filter(a -> a.getPlayer().getId().equals(playerId))
+                .findFirst().orElse(null);
+        if (attendance == null) {
+            attendance = TrainingAttendance.builder()
+                    .session(session)
+                    .player(player)
+                    .status("PRESENT")
+                    .checkedInAt(Instant.now())
+                    .build();
+        } else {
+            attendance.setCheckedInAt(Instant.now());
+            if ("ABSENT".equals(attendance.getStatus())) {
+                attendance.setStatus("PRESENT");
+            }
+        }
+        attendance = attendanceRepository.save(attendance);
+        return ResponseEntity.ok(TrainingAttendanceResponse.from(attendance));
+    }
+
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER')")
+    @PutMapping("/sessions/{sessionId}/check-out")
+    @Transactional
+    public ResponseEntity<?> checkOut(@PathVariable Long sessionId, @RequestBody(required = false) Map<String, Object> body) {
+        TrainingSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "Training session not found"));
+        }
+        Long playerId = body != null && body.get("playerId") != null ? ((Number) body.get("playerId")).longValue() : null;
+        if (playerId == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "playerId is required"));
+        }
+        TrainingAttendance attendance = attendanceRepository.findBySessionId(sessionId).stream()
+                .filter(a -> a.getPlayer().getId().equals(playerId))
+                .findFirst().orElse(null);
+        if (attendance == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No check-in record found. Please check in first."));
+        }
+        if (attendance.getCheckedInAt() == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No check-in time recorded. Please check in first."));
+        }
+        attendance.setCheckedOutAt(Instant.now());
+        attendance = attendanceRepository.save(attendance);
+        return ResponseEntity.ok(TrainingAttendanceResponse.from(attendance));
+    }
+
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT')")
     @GetMapping("/materials")
     public List<TrainingMaterialResponse> listMaterials(@RequestParam(required = false) Long teamId) {

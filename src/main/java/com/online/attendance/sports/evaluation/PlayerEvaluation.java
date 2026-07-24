@@ -45,6 +45,18 @@ public class PlayerEvaluation {
     @Column(columnDefinition = "TEXT")
     private String goals;
 
+    @Column(name = "avg_speed_kmh")
+    private Double avgSpeedKmh;
+
+    @Column(name = "max_speed_kmh")
+    private Double maxSpeedKmh;
+
+    @Column(name = "total_distance_km")
+    private Double totalDistanceKm;
+
+    @Column(name = "total_training_minutes")
+    private Integer totalTrainingMinutes;
+
     @Column(name = "created_at")
     private Instant createdAt;
 

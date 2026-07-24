@@ -99,6 +99,10 @@ public class EvaluationController {
                 .overallRating(request.getOverallRating())
                 .coachNotes(request.getCoachNotes())
                 .goals(request.getGoals())
+                .avgSpeedKmh(request.getAvgSpeedKmh())
+                .maxSpeedKmh(request.getMaxSpeedKmh())
+                .totalDistanceKm(request.getTotalDistanceKm())
+                .totalTrainingMinutes(request.getTotalTrainingMinutes())
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
@@ -135,6 +139,10 @@ public class EvaluationController {
         evaluation.setOverallRating(request.getOverallRating());
         evaluation.setCoachNotes(request.getCoachNotes());
         evaluation.setGoals(request.getGoals());
+        evaluation.setAvgSpeedKmh(request.getAvgSpeedKmh());
+        evaluation.setMaxSpeedKmh(request.getMaxSpeedKmh());
+        evaluation.setTotalDistanceKm(request.getTotalDistanceKm());
+        evaluation.setTotalTrainingMinutes(request.getTotalTrainingMinutes());
         evaluation.setTeam(team);
         evaluation.setUpdatedAt(Instant.now());
         evaluation = evaluationRepository.save(evaluation);
