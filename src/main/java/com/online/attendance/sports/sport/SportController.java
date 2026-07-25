@@ -101,4 +101,18 @@ public class SportController {
         sportRepository.deleteById(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PostMapping("/backfill-company")
+    @Transactional
+    public ResponseEntity<?> backfillCompany(Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        long orphaned = sportRepository.countOrphaned();
+        if (orphaned == 0) {
+            return ResponseEntity.ok(Map.of("message", "No orphaned sports found", "updated", 0));
+        }
+        int updated = sportRepository.backfillCompanyId(companyId);
+        log.info("Backfilled {} sports with companyId={}", updated, companyId);
+        return ResponseEntity.ok(Map.of("message", "Backfill complete", "updated", updated));
+    }
 }

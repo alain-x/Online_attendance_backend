@@ -110,4 +110,18 @@ public class ClubController {
         clubRepository.deleteById(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PostMapping("/backfill-company")
+    @Transactional
+    public ResponseEntity<?> backfillCompany(Authentication authentication) {
+        Long companyId = currentCompanyService.requireCompanyId(authentication);
+        long orphaned = clubRepository.countOrphaned();
+        if (orphaned == 0) {
+            return ResponseEntity.ok(Map.of("message", "No orphaned clubs found", "updated", 0));
+        }
+        int updated = clubRepository.backfillCompanyId(companyId);
+        log.info("Backfilled {} clubs with companyId={}", updated, companyId);
+        return ResponseEntity.ok(Map.of("message", "Backfill complete", "updated", updated));
+    }
 }
